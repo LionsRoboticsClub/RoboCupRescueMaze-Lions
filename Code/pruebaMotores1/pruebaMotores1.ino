@@ -18,7 +18,8 @@ public:
     void setLastStateA(int state) {lastStateA = state;}
   
     float calcularVelocidad();
-    void moverAdelante();
+    void forward();
+    void backward();
   
 private:
     int pinAdelante;
@@ -69,11 +70,18 @@ float Motor::calcularVelocidad()
    return velocidad; 
 }
 
-void Motor::moverAdelante()
+void Motor::forward()
 {
     analogWrite(pinAdelante, 150);
     analogWrite(pinAtras, 0);
 }
+
+void Motor::backward()
+{
+    analogWrite(pinAdelante, 0);
+    analogWrite(pinAtras, 150);
+}
+
 //------------------------------------------------
 
 
@@ -81,10 +89,10 @@ void Motor::moverAdelante()
 volatile int currentState = LOW;
 volatile int lastStateA  = LOW;
 
-Motor motor1(4,5,19,25);
-Motor motor2(7,6,18,24);
-Motor motor3(9,8,3,23);
-Motor motor4(10,11,2,22);
+Motor motor1(5,4,19,25);
+Motor motor2(6,7,18,24);
+Motor motor3(8,9,3,23);
+Motor motor4(11,10,2,22);
 
 volatile long motor1Pos = 0;
 volatile long motor2Pos = 0;
@@ -147,6 +155,31 @@ void encodeInterruptM4()
 }
 //----------------------------------------------
 
+void forward()
+{
+    motor1.forward();
+    motor2.forward();
+    motor3.forward();
+    motor4.forward();
+}
+
+void rotate(bool isRight)
+{
+    if(isRight)
+    {
+        motor1.forward();
+        motor4.forward();
+        motor3.backward();
+        motor2.backward();
+    }
+    else
+    {
+        motor1.backward();
+        motor2.backward();
+        motor3.forward();
+        motor4.forward();
+    }
+}
 
 void setup() {
 
@@ -164,15 +197,16 @@ void setup() {
 
 void loop() {
  
-    motor1.moverAdelante();
-    motor2.moverAdelante();
-    motor3.moverAdelante();
-    motor4.moverAdelante();
+    forward();
     
     velocidadMotor1 = motor1.calcularVelocidad();
     velocidadMotor2 = motor2.calcularVelocidad();
     velocidadMotor3 = motor3.calcularVelocidad();
     velocidadMotor4 = motor4.calcularVelocidad();
+
+    delay(2000);
+
+    rotate(true);
 
     Serial.println("Vel Motor1:");
     Serial.println(velocidadMotor1);
@@ -183,6 +217,6 @@ void loop() {
     Serial.println("Vel Motor4:");
     Serial.println(velocidadMotor4);
     
-    //delay(1000);
+    delay(3000);
 }
 
