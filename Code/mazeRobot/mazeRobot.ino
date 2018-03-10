@@ -1,3 +1,4 @@
+
 #include <EnableInterrupt.h>
 #include <NewPing.h>
 
@@ -81,8 +82,8 @@ public:
     void setLastStateA(int state) {lastStateA = state;}
   
     float calcularVelocidad();
-    void forward();
-    void backward();
+    void forward(int intensity);
+    void backward(int intensity);
   
 private:
     int pinAdelante;
@@ -133,16 +134,16 @@ float Motor::calcularVelocidad()
    return velocidad; 
 }
 
-void Motor::forward()
+void Motor::forward(int intensity)
 {
-    analogWrite(pinAdelante, 150);
+    analogWrite(pinAdelante, intensity);
     analogWrite(pinAtras, 0);
 }
 
-void Motor::backward()
+void Motor::backward(int intensity)
 {
     analogWrite(pinAdelante, 0);
-    analogWrite(pinAtras, 150);
+    analogWrite(pinAtras, intensity);
 }
 
 //------------------------------------------------
@@ -151,6 +152,8 @@ void Motor::backward()
 //VARIABLES
 volatile int currentState = LOW;
 volatile int lastStateA  = LOW;
+
+byte intensity = 180;
 
 Motor motor1(5,4,19,25);
 Motor motor2(6,7,18,24);
@@ -220,12 +223,12 @@ void encodeInterruptM4()
 }
 //----------------------------------------------
 
-void forward()
+void forward(int intensity)
 {
-    motor1.forward();
-    motor2.forward();
-    motor3.forward();
-    motor4.forward();
+    motor1.forward(intensity);
+    motor2.forward(intensity);
+    motor3.forward(intensity);
+    motor4.forward(intensity);
 
     velocidadMotor1 = motor1.calcularVelocidad();
     velocidadMotor2 = motor2.calcularVelocidad();
@@ -235,28 +238,47 @@ void forward()
 
 void backward()
 {
-    motor1.backward();
-    motor2.backward();
-    motor3.backward();
-    motor4.backward();
+    motor1.backward(intensity);
+    motor2.backward(intensity);
+    motor3.backward(intensity);
+    motor4.backward(intensity);
+
+    velocidadMotor1 = motor1.calcularVelocidad();
+    velocidadMotor2 = motor2.calcularVelocidad();
+    velocidadMotor3 = motor3.calcularVelocidad();
+    velocidadMotor4 = motor4.calcularVelocidad();
 }
 
-void rotate(bool isRight)
+void rotate(bool isRight, int intensity)
 {
     if(isRight)
     {
-        motor1.forward();
-        motor4.forward();
-        motor3.backward();
-        motor2.backward();
+        motor1.forward(intensity);
+        motor4.forward(intensity);
+        motor3.backward(intensity);
+        motor2.backward(intensity);
     }
     else
     {
-        motor1.backward();
-        motor2.backward();
-        motor3.forward();
-        motor4.forward();
+        motor1.backward(intensity);
+        motor2.backward(intensity);
+        motor3.forward(intensity);
+        motor4.forward(intensity);
     }
+}
+
+void turnLeft(int intensity){
+        motor1.backward(intensity);
+        motor2.backward(intensity);
+        motor3.forward(intensity);
+        motor4.forward(intensity);
+}
+
+void turnRight(int intensity){
+        motor1.forward(intensity);
+        motor4.forward(intensity);
+        motor3.backward(intensity);
+        motor2.backward(intensity);
 }
 
 void setup() {
@@ -275,14 +297,6 @@ void setup() {
 
 void loop() {
  
-    if (sharpSensor.isInRange())
-    {
-        Serial.println("En rango");    
-    }
-    else
-    {
-        Serial.println("Fuera de rango");
-    }
+    Serial.println(sharpSensor.isInRange() ? "En rango" : "Fuera de rango");
     
 }
-
