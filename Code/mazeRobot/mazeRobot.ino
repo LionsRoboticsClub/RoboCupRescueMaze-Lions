@@ -1,4 +1,3 @@
-
 #include <EnableInterrupt.h>
 #include <NewPing.h>
 #include <Adafruit_MLX90614.h>
@@ -23,7 +22,7 @@ LimitSwitch::LimitSwitch(int addPin)
 
 bool LimitSwitch::isPushed()
 {
-  return digitalRead(pin); 
+  return digitalRead(pin);
 }
 //--------------------------------------
 
@@ -144,16 +143,17 @@ class Motor
       lastStateA = state;
     }
 
-    float calcularVelocidad();
+    float calculateSpeed();
     void forward(int intensity);
     void backward(int intensity);
+    void stopMotor();
 
   private:
     int pinAdelante;
     int pinAtras;
     int encoderA;
     int encoderB;
-    float velocidad;
+    float speed;
     volatile unsigned long long encoderPos;
     volatile int currentState = LOW;
     volatile int lastStateA  = LOW;
@@ -179,22 +179,22 @@ Motor::Motor(int pin1, int pin2, int eA, int eB)
   pinMode(encoderB, INPUT);
   digitalWrite(encoderB, HIGH);
 
-  velocidad = 0;
+  speed = 0;
   encoderPos = 0;
 
   oldTime = 0;
   oldPos;
 }
 
-float Motor::calcularVelocidad()
+float Motor::calculateSpeed()
 {
   unsigned long long newTime = millis();
 
   //newTime = newTime % 10000007;
-  velocidad = ((encoderPos - oldPos) * 1000) / ((float)(newTime - oldTime));
+  speed = ((encoderPos - oldPos) * 1000) / ((float)(newTime - oldTime));
   oldTime = newTime;
   oldPos = encoderPos;
-  return velocidad;
+  return speed;
 }
 
 void Motor::forward(int intensity)
@@ -209,15 +209,32 @@ void Motor::backward(int intensity)
   analogWrite(pinAtras, intensity);
 }
 
+void Motor::stopMotor()
+{
+  analogWrite(pinAdelante, 0);
+  analogWrite(pinAtras, 0);
+}
+
 //------------------------------------------------
 
 
 //VARIABLES
 volatile int currentState = LOW;
 volatile int lastStateA  = LOW;
+volatile bool interruptActive = false;
+volatile bool firstTurn90 = true;
 
-byte intensity = 180;
+int turn90amount = 785;
 
+long encoder1TotalTurnPos = 0;
+long encoder2TotalTurnPos = 0;
+long encoder3TotalTurnPos = 0;
+long encoder4TotalTurnPos = 0;
+
+byte gintensity = 250;
+
+
+//Class declarations
 Motor motor1(5, 4, 19, 25);
 Motor motor2(6, 7, 18, 24);
 Motor motor3(8, 9, 3, 23);
@@ -228,14 +245,16 @@ volatile long motor2Pos = 0;
 volatile long motor3Pos = 0;
 volatile long motor4Pos = 0;
 
-float velocidadMotor1 = 0;
-float velocidadMotor2 = 0;
-float velocidadMotor3 = 0;
-float velocidadMotor4 = 0;
+float speedMotor1 = 0;
+float speedMotor2 = 0;
+float speedMotor3 = 0;
+float speedMotor4 = 0;
 
 Ultrasonic ultraSensor(A9);
 DigitalSharp sharpSensor(A6);
+LimitSwitch limitSensor(A2);
 
+//--------------------------------------------------
 //INTERRUPTS
 void encodeInterruptM1()
 {
@@ -243,6 +262,7 @@ void encodeInterruptM1()
   if (currentState == HIGH)
   {
     motor1Pos++;
+    encoder1TotalTurnPos++;
   }
 
   motor1.setEncoderPos(motor1Pos);
@@ -255,6 +275,8 @@ void encodeInterruptM2()
   if (currentState == HIGH)
   {
     motor2Pos++;
+    interruptActive = true;
+    encoder2TotalTurnPos++;
   }
 
   motor2.setEncoderPos(motor2Pos);
@@ -263,10 +285,12 @@ void encodeInterruptM2()
 
 void encodeInterruptM3()
 {
+
   currentState = digitalRead(motor3.getEncoderA());
   if (currentState == HIGH)
   {
     motor3Pos++;
+    encoder3TotalTurnPos++;
   }
 
   motor3.setEncoderPos(motor3Pos);
@@ -279,12 +303,24 @@ void encodeInterruptM4()
   if (currentState == HIGH)
   {
     motor4Pos++;
+    encoder4TotalTurnPos++;
   }
 
   motor4.setEncoderPos(motor4Pos);
   motor4.setLastStateA(currentState);
 }
 //----------------------------------------------
+
+//---------------------------------------------
+//Motor move functions
+
+void stopMotors()
+{
+  motor1.stopMotor();
+  motor2.stopMotor();
+  motor3.stopMotor();
+  motor4.stopMotor();
+}
 
 void forward(int intensity)
 {
@@ -293,23 +329,23 @@ void forward(int intensity)
   motor3.forward(intensity);
   motor4.forward(intensity);
 
-  velocidadMotor1 = motor1.calcularVelocidad();
-  velocidadMotor2 = motor2.calcularVelocidad();
-  velocidadMotor3 = motor3.calcularVelocidad();
-  velocidadMotor4 = motor4.calcularVelocidad();
+  speedMotor1 = motor1.calculateSpeed();
+  speedMotor2 = motor2.calculateSpeed();
+  speedMotor3 = motor3.calculateSpeed();
+  speedMotor4 = motor4.calculateSpeed();
 }
 
-void backward()
+void backward(int intensity)
 {
   motor1.backward(intensity);
   motor2.backward(intensity);
   motor3.backward(intensity);
   motor4.backward(intensity);
 
-  velocidadMotor1 = motor1.calcularVelocidad();
-  velocidadMotor2 = motor2.calcularVelocidad();
-  velocidadMotor3 = motor3.calcularVelocidad();
-  velocidadMotor4 = motor4.calcularVelocidad();
+  speedMotor1 = motor1.calculateSpeed();
+  speedMotor2 = motor2.calculateSpeed();
+  speedMotor3 = motor3.calculateSpeed();
+  speedMotor4 = motor4.calculateSpeed();
 }
 
 void rotate(bool isRight, int intensity)
@@ -331,6 +367,7 @@ void rotate(bool isRight, int intensity)
 }
 
 void turnLeft(int intensity) {
+
   motor1.backward(intensity);
   motor2.backward(intensity);
   motor3.forward(intensity);
@@ -338,11 +375,109 @@ void turnLeft(int intensity) {
 }
 
 void turnRight(int intensity) {
+
   motor1.forward(intensity);
   motor4.forward(intensity);
   motor3.backward(intensity);
   motor2.backward(intensity);
 }
+
+void turn90degRight(int intensity) {
+
+  if (firstTurn90)
+  {
+    turnRight(intensity);
+    encoder2TotalTurnPos = 0;
+    encoder3TotalTurnPos = 0;
+    encoder4TotalTurnPos = 0;
+    firstTurn90 = false;
+  }
+
+
+  if (encoder2TotalTurnPos > turn90amount && encoder3TotalTurnPos > turn90amount && encoder4TotalTurnPos > turn90amount)
+  {
+    turnRight(intensity);
+    firstTurn90 = true;
+  }
+}
+
+void turn90degLeft(int intensity) {
+
+  if (firstTurn90)
+  {
+    turnLeft(intensity);
+    encoder2TotalTurnPos = 0;
+    encoder3TotalTurnPos = 0;
+    encoder4TotalTurnPos = 0;
+    firstTurn90 = false;
+  }
+
+
+  if (encoder2TotalTurnPos > turn90amount && encoder3TotalTurnPos > turn90amount && encoder4TotalTurnPos > turn90amount)
+  {
+    turnRight(intensity);
+    firstTurn90 = true;
+  }
+}
+
+void conciousTurn90Left(int intensity)
+{
+  do
+  {
+    turn90degLeft(intensity);
+
+    speedMotor1 = motor1.calculateSpeed();
+    speedMotor2 = motor2.calculateSpeed();
+    speedMotor3 = motor3.calculateSpeed();
+    speedMotor4 = motor4.calculateSpeed();
+
+    Serial.println("Vel Motor1: ");
+    Serial.println(speedMotor1);
+    Serial.println("Vel Motor2: ");
+    Serial.println(speedMotor2);
+    Serial.println("Vel Motor3: ");
+    Serial.println(speedMotor3);
+    Serial.println("Vel Motor4: ");
+    Serial.println(speedMotor4);
+
+  }
+  while (!firstTurn90);
+
+  stopMotors();
+  delay(500);
+}
+
+void conciousTurn90Right(int intensity)
+{
+  do
+  {
+    turn90degRight(intensity);
+
+    speedMotor1 = motor1.calculateSpeed();
+    speedMotor2 = motor2.calculateSpeed();
+    speedMotor3 = motor3.calculateSpeed();
+    speedMotor4 = motor4.calculateSpeed();
+
+    Serial.println("Vel Motor1: ");
+    Serial.println(speedMotor1);
+    Serial.println("Vel Motor2: ");
+    Serial.println(speedMotor2);
+    Serial.println("Vel Motor3: ");
+    Serial.println(speedMotor3);
+    Serial.println("Vel Motor4: ");
+    Serial.println(speedMotor4);
+
+  }
+  while (!firstTurn90);
+
+  stopMotors();
+  delay(500);
+}
+
+//void forward30(gintensity)
+//{
+   //forwardAmount
+//}
 
 void setup() {
 
@@ -360,6 +495,12 @@ void setup() {
 
 void loop() {
 
-  Serial.println(sharpSensor.isInRange() ? "En rango" : "Fuera de rango");
+  forward(gintensity);
+  delay(5000);
+
+  stopMotors();
+  delay(5000);
+
+  //conciousTurn90Right(gintensity);
 
 }
