@@ -3,6 +3,29 @@
 #include <NewPing.h>
 #include <Adafruit_MLX90614.h>
 
+/*--------------------------------------
+  Class LimitSwitch
+*/
+class LimitSwitch
+{
+  public:
+    LimitSwitch(int);
+    bool isPushed();
+  private:
+    int pin;
+};
+
+LimitSwitch::LimitSwitch(int addPin)
+{
+  pin = addPin;
+  pinMode(pin, INPUT);
+}
+
+bool LimitSwitch::isPushed()
+{
+  return digitalRead(pin); 
+}
+//--------------------------------------
 
 /*--------------------------------------
   Class Thermometer
