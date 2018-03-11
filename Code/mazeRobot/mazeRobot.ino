@@ -225,6 +225,7 @@ volatile bool interruptActive = false;
 volatile bool firstTurn90 = true;
 
 int turn90amount = 785;
+int forward30amount = 1620;
 
 long encoder1TotalTurnPos = 0;
 long encoder2TotalTurnPos = 0;
@@ -233,6 +234,15 @@ long encoder4TotalTurnPos = 0;
 
 byte gintensity = 250;
 
+//THE POSITION
+
+//MAP
+int theMap[4][4][11] = {
+  {{1,0,1,0,0,0,1,0,0,0,0},{1,0,0,0,1,0,1,0,0,0,0}.{1,0,0,0,1,0,0,0,0,0,0}.{1,0,1,0,0,0,0,0,0,0,0}},
+  {{0,0,0,0,0,0,1,0,0,0,0},{1,0,0,0,0,0,0,0,0,0,0},{1,0,0,0,0,0,0,0,0,0,0},{0,0,1,0,0,0,0,0,0,0,0}},
+  {{0,0,1,0,0,0,1,0,0,0,0}.{0,0,0,0,0,0,1,0,0,0,0},{0,0,1,0,1,0,0,0,0,0,0},{0,0,1,0,0,0,1,0,0,0,0}},
+  {{0,0,1,0,1,0,1,0,0,0,0},{0,0,0,0,1,0,1,0,0,0,0},{1,0,0,0,1,0,0,0,0,0,0},{0,0,1,0,1,0,0,0,0,0,0}},
+}
 
 //Class declarations
 Motor motor1(5, 4, 19, 25);
@@ -474,10 +484,39 @@ void conciousTurn90Right(int intensity)
   delay(500);
 }
 
-//void forward30(gintensity)
-//{
-   //forwardAmount
-//}
+void forwardAmount(int intensity)
+{
+   if (firstTurn90)
+  {
+    forward(intensity);
+    encoder2TotalTurnPos = 0;
+    encoder3TotalTurnPos = 0;
+    encoder4TotalTurnPos = 0;
+    firstTurn90 = false;
+  }
+
+
+  if (encoder2TotalTurnPos > forward30amount && encoder3TotalTurnPos > forward30amount && encoder4TotalTurnPos > forward30amount)
+  {
+    forward(intensity);
+    firstTurn90 = true;
+  }
+
+  Serial.println(encoder2TotalTurnPos);
+}
+
+void forward30(int intensity)
+{
+  do
+  {
+    forwardAmount(intensity);
+     
+  }
+  while(!firstTurn90);
+
+  stopMotors();
+   
+}
 
 void setup() {
 
@@ -495,12 +534,6 @@ void setup() {
 
 void loop() {
 
-  forward(gintensity);
-  delay(5000);
-
-  stopMotors();
-  delay(5000);
-
-  //conciousTurn90Right(gintensity);
+  
 
 }

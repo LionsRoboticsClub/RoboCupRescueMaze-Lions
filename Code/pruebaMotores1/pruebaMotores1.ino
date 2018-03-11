@@ -220,6 +220,8 @@ void encodeInterruptM4()
 }
 //----------------------------------------------
 
+//--------------------------------------------
+//Motor Move functions
 void forward()
 {
     motor1.forward();
