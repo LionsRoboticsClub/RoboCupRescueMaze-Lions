@@ -3,171 +3,32 @@
 #include <Adafruit_MLX90614.h>
 
 /*--------------------------------------
-Class Wall
+*
+*
+*         GLOBAL VARIABLES
+*
+*
+----------------------------------------
 */
 
-class Wall
-{
-public:
-  Wall();
+volatile int currentState = LOW;
+volatile int lastStateA  = LOW;
+volatile bool interruptActive = false;
+volatile bool firstTurn90 = true;
 
-  void setExists(bool value) {exists = value;}
-  void setHeatedVictim(bool value) {heatedVictim = value;}
-  void setHarmedVictim(bool value) {harmedVictim = value;}
-  void setStableVictim(bool value) {stableVictim = value;}
-  void setUnharmedVictim(bool value) {unharmedVictim = value;}
-
-  bool exists() {return exists};
-  bool getHeatedVictim() {return heatedVictim;}
-  bool getHarmedVictim() {return harmedVictim;}
-  bool getStableVictim() {return stableVictim;}
-  bool getUnharmedVictim() {return unharmedVictim;}
-
-private:
-
-  bool exists;
-  bool heatedVictim, harmedVictim, stableVictim, unharmedVictim;
-}
-
-Wall::Wall()
-{
-  exists = false;
-  heatedVictim = false;
-  harmedVictim = false;
-  stableVictim = false;
-  unharmedVictim = false;
-}
-//--------------------------------------
+volatile long motor1Pos = 0;
+volatile long motor2Pos = 0;
+volatile long motor3Pos = 0;
+volatile long motor4Pos = 0;
 
 /*--------------------------------------
-Class Tile
+*
+*
+*         SENSORS
+*
+*
+----------------------------------------
 */
-class Tile
-{
-public:
-  Tile();
-
-  byte getX() {return x;}
-  byte getY() {return y;}
-
-  void setX(byte nx) {x = nx;}
-  void setX(byte ny) {y = ny;}
-  void setIsVisited(bool value) {isVisited = value;}
-  void setIsRobotPresent(bool value) {isRobotPresent = value;}
-  void setIsNode(bool value) {isNode = value;}
-
-  bool getIsVisited() {return isVisited;}
-  bool getIsNode() {return isNode;}
-  bool getIsRobotPresent() {return isRobotPresent;}
-
-  Wall wallFront;
-  Wall wallRight;
-  Wall wallLeft;
-  Wall wallBack;
-
-private:
-  byte x;
-  byte y;
-
-  bool isVisited, isNode, isRobotPresent;
-  byte floorType;
-
-}
-
-Tile::Tile()
-{
-  isVisited = false;
-  isNode = false;
-  isRobotPresent = false;
-
-  byte floorType = 0;
-}
-//--------------------------------------
-
-/*--------------------------------------
-Class Navigation
-*/
-class Navigation
-{
-public:
-
-  static void start(byte matSize);
-
-  static void scanSides();
-  static void moveToNextTile();
-
-private:
-  static byte robotPosX;
-  static byte robotPosY;
-  static byte robotOrientation;
-
-  static Tile tiles[200];
-
-  static Ultrasonic ultraSensorLeft;
-  static Ultrasonic ultraSensorRight;
-
-
-};
-
-static Ultrasonic Navigation::ultraSensorLeft(int A9);
-static Ultrasonic Navigation::ultraSensorRight(int A5);
-static byte Navigation::robotOrientation = 0;
-
-static byte Navigation::robotPosX = 0;
-static byte Navigation::robotPosY = 0;
-static Tile Navigation::tiles;
-
-static void Navigation::start(byte matSize)
-{
-  for (byte i = 0; i < matSize; ++i)
-  {
-    for (byte j = 0; j < matSize; ++j)
-    {
-      tiles[i][j].setX(i);
-      tiles[i][j].setX(j);
-    }
-  }
-
-  robotPosX = matSize/2;
-  robotPosY = matSize/2;
-
-  tiles[robotPosX][robotPosY].setIsRobotPresent(true);
-
-  robotOrientation = 0;
-}
-
-static void Navigation::scanSides()
-{
-  switch (robotOrientation)
-  {
-    case 0:
-      if (ultraSensorRight.getDistance() < 20)
-      {
-        tile[robotPosX][robotPosY].wallRight.setExists(true);
-      }
-
-      if (ultraSensorLeft.getDistance() < 20)
-      {
-        tile[robotPosX][robotPosY].wallRight.setExists(true);
-      }
-
-      break;
-    case 1:
-      break;
-    case 2:
-      break;
-    case 3:
-      break;
-  }
-}
-
-static void Navigation::moveToNextTile()
-{
-
-}
-
-
-//--------------------------------------
 
 /*--------------------------------------
   Class LimitSwitch
@@ -278,6 +139,15 @@ float Ultrasonic::getDistance()
 
 //--------------------------------------
 
+/*--------------------------------------
+*
+*
+*         MOTORS AND CONTROL
+*
+*
+----------------------------------------
+*/
+
 /*---------------------------------------
   Class Motor
 */
@@ -309,6 +179,11 @@ class Motor
     void setLastStateA(int state) {
       lastStateA = state;
     }
+
+    void increaseEncoderPos() {
+      encoderPos++;
+    }
+
 
     float calculateSpeed();
     void forward(int intensity);
@@ -382,9 +257,273 @@ void Motor::stopMotor()
   analogWrite(pinAtras, 0);
 }
 
+
 //------------------------------------------------
 
+/*-----------------------------------------------
+Class Control
+*/
 
+class Control
+{
+public:
+  Control();
+
+  Motor getMotor1() {return motor1;}
+  Motor getMotor2() {return motor2;}
+  Motor getMotor3() {return motor3;}
+  Motor getMotor4() {return motor4;}
+
+  void forwardTile();
+
+private:
+  Motor motor1;
+  Motor motor2;
+  Motor motor3;
+  Motor motor4;
+
+  Ultrasonic ultraSensorRight;
+  Ultrasonic ultraSensorLeft;
+
+};
+
+Control::Control() :
+motor1(5,4,19,25), motor2(6,7,18,24), motor3(8,9,3,23), motor4(11,10,2,22),
+ultraSensorRight(A5), ultraSensorLeft(A9)
+{
+
+}
+
+void Control::forwardTile()
+{
+  
+}
+
+/*--------------------------------------
+*
+*
+*         NAVIGATION, WALLS, AND TILES
+*
+*
+----------------------------------------
+*/
+/*--------------------------------------
+Class Wall
+*/
+
+class Wall
+{
+public:
+  Wall();
+
+  void setWallExists(bool value) {wallExists = value;}
+  void setHeatedVictim(bool value) {heatedVictim = value;}
+  void setHarmedVictim(bool value) {harmedVictim = value;}
+  void setStableVictim(bool value) {stableVictim = value;}
+  void setUnharmedVictim(bool value) {unharmedVictim = value;}
+
+  bool getWallExists() {return wallExists;}
+  bool getHeatedVictim() {return heatedVictim;}
+  bool getHarmedVictim() {return harmedVictim;}
+  bool getStableVictim() {return stableVictim;}
+  bool getUnharmedVictim() {return unharmedVictim;}
+
+private:
+
+  bool wallExists;
+  bool heatedVictim, harmedVictim, stableVictim, unharmedVictim;
+};
+
+Wall::Wall()
+{
+  wallExists = false;
+  heatedVictim = false;
+  harmedVictim = false;
+  stableVictim = false;
+  unharmedVictim = false;
+}
+//--------------------------------------
+
+/*--------------------------------------
+Class Tile
+*/
+class Tile
+{
+public:
+  Tile();
+
+  byte getX() {return x;}
+  byte getY() {return y;}
+
+  void setX(byte nx) {x = nx;}
+  void setY(byte ny) {y = ny;}
+  void setIsVisited(bool value) {isVisited = value;}
+  void setIsRobotPresent(bool value) {isRobotPresent = value;}
+  void setIsNode(bool value) {isNode = value;}
+
+  bool getIsVisited() {return isVisited;}
+  bool getIsNode() {return isNode;}
+  bool getIsRobotPresent() {return isRobotPresent;}
+
+  Wall wallFront;
+  Wall wallRight;
+  Wall wallLeft;
+  Wall wallBack;
+
+private:
+  byte x;
+  byte y;
+
+  bool isVisited, isNode, isRobotPresent;
+  byte floorType;
+
+};
+
+Tile::Tile()
+{
+  isVisited = false;
+  isNode = false;
+  isRobotPresent = false;
+
+  byte floorType = 0;
+}
+//--------------------------------------
+
+/*--------------------------------------
+Class Navigation
+*/
+class Navigation
+{
+public:
+
+  static void start(byte matSize);
+
+  static void scanSides();
+  static void moveToNextTile();
+  static Control getControl() {return control;}
+
+private:
+  static Control control;
+
+  static byte robotPosX;
+  static byte robotPosY;
+  static byte robotOrientation;
+
+  static Tile tiles[30][30];
+
+};
+
+byte Navigation::robotOrientation = 0;
+
+byte Navigation::robotPosX = 0;
+byte Navigation::robotPosY = 0;
+Tile Navigation::tiles[30][30];
+
+void Navigation::start(byte matSize)
+{
+  for (byte i = 0; i < matSize; ++i)
+  {
+    for (byte j = 0; j < matSize; ++j)
+    {
+      tiles[i][j].setX(i);
+      tiles[i][j].setX(j);
+    }
+  }
+
+  robotPosX = matSize/2;
+  robotPosY = matSize/2;
+
+  tiles[robotPosX][robotPosY].setIsRobotPresent(true);
+
+  robotOrientation = 0;
+}
+
+void Navigation::scanSides()
+{
+  switch (robotOrientation)
+  {
+    case 0:
+      if (ultraSensorRight.getDistance() < 20)
+      {
+        tile[robotPosX][robotPosY].wallRight.setWallExists(true);
+      }
+
+      if (ultraSensorLeft.getDistance() < 20)
+      {
+        tile[robotPosX][robotPosY].wallRight.setWallExists(true);
+      }
+
+      break;
+    case 1:
+      break;
+    case 2:
+      break;
+    case 3:
+      break;
+  }
+}
+
+void Navigation::moveToNextTile()
+{
+
+}
+
+
+/*--------------------------------------
+*
+*
+*         INTERRUPTS
+*
+*
+----------------------------------------
+*/
+
+//Interrupts for Motors
+
+void encodeInterruptM1()
+{
+  currentState = digitalRead(Navigation::getControl().getMotor1().getEncoderA());
+  if (currentState == HIGH)
+  {
+    Navigation::getControl().getMotor1().increaseEncoderPos();
+    encoder1TotalTurnPos++;
+  }
+
+}
+
+void encodeInterruptM2()
+{
+  currentState = digitalRead(Navigation::getControl().getMotor2().getEncoderA());
+  if (currentState == HIGH)
+  {
+    Navigation::getControl().getMotor2().increaseEncoderPos();
+    interruptActive = true;
+    encoder2TotalTurnPos++;
+  }
+}
+
+void encodeInterruptM3()
+{
+
+  currentState = digitalRead(Navigation::getControl().getMotor3().getEncoderA());
+  if (currentState == HIGH)
+  {
+    Navigation::getControl().getMotor3().increaseEncoderPos();
+    encoder3TotalTurnPos++;
+  }
+}
+
+void encodeInterruptM4()
+{
+  currentState = digitalRead(Navigation::getControl().getMotor4().getEncoderA());
+  if (currentState == HIGH)
+  {
+    Navigation::getControl().getMotor4().increaseEncoderPos();
+    encoder4TotalTurnPos++;
+  }
+}
+
+/*
 //VARIABLES
 volatile int currentState = LOW;
 volatile int lastStateA  = LOW;
@@ -400,18 +539,9 @@ long encoder3TotalTurnPos = 0;
 long encoder4TotalTurnPos = 0;
 
 byte gintensity = 250;
-
-//THE POSITION
-
-//MAP
-int theMap[4][4][11] = {
-  {{1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0} .{1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0} .{1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}},
-  {{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}},
-  {{0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0} .{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0}, {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0}},
-  {{0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0}, {0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0}},
-}
-
+*/
 //Class declarations
+/*
 Motor motor1(5, 4, 19, 25);
 Motor motor2(6, 7, 18, 24);
 Motor motor3(8, 9, 3, 23);
@@ -430,67 +560,12 @@ float speedMotor4 = 0;
 Ultrasonic ultraSensor(A9);
 DigitalSharp sharpSensor(A6);
 LimitSwitch limitSensor(A2);
-
-//--------------------------------------------------
-//INTERRUPTS
-void encodeInterruptM1()
-{
-  currentState = digitalRead(motor1.getEncoderA());
-  if (currentState == HIGH)
-  {
-    motor1Pos++;
-    encoder1TotalTurnPos++;
-  }
-
-  motor1.setEncoderPos(motor1Pos);
-  motor1.setLastStateA(currentState);
-}
-
-void encodeInterruptM2()
-{
-  currentState = digitalRead(motor2.getEncoderA());
-  if (currentState == HIGH)
-  {
-    motor2Pos++;
-    interruptActive = true;
-    encoder2TotalTurnPos++;
-  }
-
-  motor2.setEncoderPos(motor2Pos);
-  motor2.setLastStateA(currentState);
-}
-
-void encodeInterruptM3()
-{
-
-  currentState = digitalRead(motor3.getEncoderA());
-  if (currentState == HIGH)
-  {
-    motor3Pos++;
-    encoder3TotalTurnPos++;
-  }
-
-  motor3.setEncoderPos(motor3Pos);
-  motor3.setLastStateA(currentState);
-}
-
-void encodeInterruptM4()
-{
-  currentState = digitalRead(motor4.getEncoderA());
-  if (currentState == HIGH)
-  {
-    motor4Pos++;
-    encoder4TotalTurnPos++;
-  }
-
-  motor4.setEncoderPos(motor4Pos);
-  motor4.setLastStateA(currentState);
-}
-//----------------------------------------------
+*/
 
 //---------------------------------------------
 //Motor move functions
 
+/*
 void stopMotors()
 {
   motor1.stopMotor();
@@ -684,23 +759,24 @@ void forward30(int intensity)
   stopMotors();
 
 }
-
+*/
 void setup() {
 
-  enableInterrupt(motor1.getEncoderA(), encodeInterruptM1, CHANGE);
-  enableInterrupt(motor1.getEncoderB(), encodeInterruptM1, CHANGE);
-  enableInterrupt(motor2.getEncoderA(), encodeInterruptM2, CHANGE);
-  enableInterrupt(motor2.getEncoderB(), encodeInterruptM2, CHANGE);
-  enableInterrupt(motor3.getEncoderA(), encodeInterruptM3, CHANGE);
-  enableInterrupt(motor3.getEncoderB(), encodeInterruptM3, CHANGE);
-  enableInterrupt(motor4.getEncoderA(), encodeInterruptM4, CHANGE);
-  enableInterrupt(motor4.getEncoderB(), encodeInterruptM4, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor1().getEncoderA(), encodeInterruptM1, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor1().getEncoderB(), encodeInterruptM1, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor2().getEncoderA(), encodeInterruptM2, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor2().getEncoderB(), encodeInterruptM2, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor3().getEncoderA(), encodeInterruptM3, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor3().getEncoderB(), encodeInterruptM3, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor4().getEncoderA(), encodeInterruptM4, CHANGE);
+  enableInterrupt(Navigation::getControl().getMotor4().getEncoderB(), encodeInterruptM4, CHANGE);
+
+  Navigation::start(20);
 
   Serial.begin(9600);
 }
 
 void loop() {
 
-  Navigation::start();
 
 }
