@@ -3,6 +3,173 @@
 #include <Adafruit_MLX90614.h>
 
 /*--------------------------------------
+Class Wall
+*/
+
+class Wall
+{
+public:
+  Wall();
+
+  void setExists(bool value) {exists = value;}
+  void setHeatedVictim(bool value) {heatedVictim = value;}
+  void setHarmedVictim(bool value) {harmedVictim = value;}
+  void setStableVictim(bool value) {stableVictim = value;}
+  void setUnharmedVictim(bool value) {unharmedVictim = value;}
+
+  bool exists() {return exists};
+  bool getHeatedVictim() {return heatedVictim;}
+  bool getHarmedVictim() {return harmedVictim;}
+  bool getStableVictim() {return stableVictim;}
+  bool getUnharmedVictim() {return unharmedVictim;}
+
+private:
+
+  bool exists;
+  bool heatedVictim, harmedVictim, stableVictim, unharmedVictim;
+}
+
+Wall::Wall()
+{
+  exists = false;
+  heatedVictim = false;
+  harmedVictim = false;
+  stableVictim = false;
+  unharmedVictim = false;
+}
+//--------------------------------------
+
+/*--------------------------------------
+Class Tile
+*/
+class Tile
+{
+public:
+  Tile();
+
+  byte getX() {return x;}
+  byte getY() {return y;}
+
+  void setX(byte nx) {x = nx;}
+  void setX(byte ny) {y = ny;}
+  void setIsVisited(bool value) {isVisited = value;}
+  void setIsRobotPresent(bool value) {isRobotPresent = value;}
+  void setIsNode(bool value) {isNode = value;}
+
+  bool getIsVisited() {return isVisited;}
+  bool getIsNode() {return isNode;}
+  bool getIsRobotPresent() {return isRobotPresent;}
+
+  Wall wallFront;
+  Wall wallRight;
+  Wall wallLeft;
+  Wall wallBack;
+
+private:
+  byte x;
+  byte y;
+
+  bool isVisited, isNode, isRobotPresent;
+  byte floorType;
+
+}
+
+Tile::Tile()
+{
+  isVisited = false;
+  isNode = false;
+  isRobotPresent = false;
+
+  byte floorType = 0;
+}
+//--------------------------------------
+
+/*--------------------------------------
+Class Navigation
+*/
+class Navigation
+{
+public:
+
+  static void start(byte matSize);
+
+  static void scanSides();
+  static void moveToNextTile();
+
+private:
+  static byte robotPosX;
+  static byte robotPosY;
+  static byte robotOrientation;
+
+  static Tile tiles[200];
+
+  static Ultrasonic ultraSensorLeft;
+  static Ultrasonic ultraSensorRight;
+
+
+};
+
+static Ultrasonic Navigation::ultraSensorLeft(int A9);
+static Ultrasonic Navigation::ultraSensorRight(int A5);
+static byte Navigation::robotOrientation = 0;
+
+static byte Navigation::robotPosX = 0;
+static byte Navigation::robotPosY = 0;
+static Tile Navigation::tiles;
+
+static void Navigation::start(byte matSize)
+{
+  for (byte i = 0; i < matSize; ++i)
+  {
+    for (byte j = 0; j < matSize; ++j)
+    {
+      tiles[i][j].setX(i);
+      tiles[i][j].setX(j);
+    }
+  }
+
+  robotPosX = matSize/2;
+  robotPosY = matSize/2;
+
+  tiles[robotPosX][robotPosY].setIsRobotPresent(true);
+
+  robotOrientation = 0;
+}
+
+static void Navigation::scanSides()
+{
+  switch (robotOrientation)
+  {
+    case 0:
+      if (ultraSensorRight.getDistance() < 20)
+      {
+        tile[robotPosX][robotPosY].wallRight.setExists(true);
+      }
+
+      if (ultraSensorLeft.getDistance() < 20)
+      {
+        tile[robotPosX][robotPosY].wallRight.setExists(true);
+      }
+
+      break;
+    case 1:
+      break;
+    case 2:
+      break;
+    case 3:
+      break;
+  }
+}
+
+static void Navigation::moveToNextTile()
+{
+
+}
+
+
+//--------------------------------------
+
+/*--------------------------------------
   Class LimitSwitch
 */
 class LimitSwitch
@@ -238,10 +405,10 @@ byte gintensity = 250;
 
 //MAP
 int theMap[4][4][11] = {
-  {{1,0,1,0,0,0,1,0,0,0,0},{1,0,0,0,1,0,1,0,0,0,0}.{1,0,0,0,1,0,0,0,0,0,0}.{1,0,1,0,0,0,0,0,0,0,0}},
-  {{0,0,0,0,0,0,1,0,0,0,0},{1,0,0,0,0,0,0,0,0,0,0},{1,0,0,0,0,0,0,0,0,0,0},{0,0,1,0,0,0,0,0,0,0,0}},
-  {{0,0,1,0,0,0,1,0,0,0,0}.{0,0,0,0,0,0,1,0,0,0,0},{0,0,1,0,1,0,0,0,0,0,0},{0,0,1,0,0,0,1,0,0,0,0}},
-  {{0,0,1,0,1,0,1,0,0,0,0},{0,0,0,0,1,0,1,0,0,0,0},{1,0,0,0,1,0,0,0,0,0,0},{0,0,1,0,1,0,0,0,0,0,0}},
+  {{1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0} .{1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0} .{1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}},
+  {{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0}},
+  {{0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0} .{0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0}, {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0}},
+  {{0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0}, {0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0}, {1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0}, {0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0}},
 }
 
 //Class declarations
@@ -486,7 +653,7 @@ void conciousTurn90Right(int intensity)
 
 void forwardAmount(int intensity)
 {
-   if (firstTurn90)
+  if (firstTurn90)
   {
     forward(intensity);
     encoder2TotalTurnPos = 0;
@@ -510,12 +677,12 @@ void forward30(int intensity)
   do
   {
     forwardAmount(intensity);
-     
+
   }
-  while(!firstTurn90);
+  while (!firstTurn90);
 
   stopMotors();
-   
+
 }
 
 void setup() {
@@ -534,6 +701,6 @@ void setup() {
 
 void loop() {
 
-  
+  Navigation::start();
 
 }
