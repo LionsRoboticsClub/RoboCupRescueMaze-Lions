@@ -11,15 +11,6 @@
 ----------------------------------------
 */
 
-volatile int currentState = LOW;
-volatile int lastStateA  = LOW;
-volatile bool interruptActive = false;
-volatile bool firstTurn90 = true;
-
-volatile long motor1Pos = 0;
-volatile long motor2Pos = 0;
-volatile long motor3Pos = 0;
-volatile long motor4Pos = 0;
 
 /*--------------------------------------
 *
@@ -36,13 +27,13 @@ volatile long motor4Pos = 0;
 class LimitSwitch
 {
   public:
-    LimitSwitch(int);
+    LimitSwitch(byte);
     bool isPushed();
   private:
     int pin;
 };
 
-LimitSwitch::LimitSwitch(int addPin)
+LimitSwitch::LimitSwitch(byte addPin)
 {
   pin = addPin;
   pinMode(pin, INPUT);
@@ -61,10 +52,10 @@ class Thermometer
 {
   public:
     Thermometer();
-    double getTemperature();
+    float getTemperature();
 
   private:
-    double temperature;
+    float temperature;
     Adafruit_MLX90614 mlx;
 };
 
@@ -73,7 +64,7 @@ Thermometer::Thermometer()
   mlx.begin();
 }
 
-double Thermometer::getTemperature()
+float Thermometer::getTemperature()
 {
   return mlx.readObjectTempC();
 }
@@ -86,15 +77,15 @@ double Thermometer::getTemperature()
 class DigitalSharp
 {
   public:
-    DigitalSharp(int);
+    DigitalSharp(byte);
 
     bool isInRange();
 
   private:
-    int pin;
+    byte pin;
 };
 
-DigitalSharp::DigitalSharp(int addPin)
+DigitalSharp::DigitalSharp(byte addPin)
 {
   pin = addPin;
   pinMode(pin, INPUT);
@@ -114,7 +105,7 @@ bool DigitalSharp::isInRange()
 class Ultrasonic
 {
   public:
-    Ultrasonic(int);
+    Ultrasonic(byte);
 
     float getDistance();
 
@@ -124,7 +115,7 @@ class Ultrasonic
 
 };
 
-Ultrasonic::Ultrasonic(int pin) :
+Ultrasonic::Ultrasonic(byte pin) :
   sonar(pin, pin)
 {
   pingPin = pin;
@@ -155,7 +146,7 @@ float Ultrasonic::getDistance()
 class Motor
 {
   public:
-    Motor(int, int, int, int);
+    Motor(byte, byte, byte, byte);
 
     int getEncoderA() {
       return encoderA;
@@ -163,13 +154,13 @@ class Motor
     int getEncoderB() {
       return encoderB;
     }
-    unsigned long long getOldPos() {
+    unsigned long getOldPos() {
       return oldPos;
     }
     int getLastStateA() {
       return lastStateA;
     }
-    unsigned long long getEncoderPos() {
+    unsigned long getEncoderPos() {
       return encoderPos;
     }
 
@@ -184,6 +175,17 @@ class Motor
       encoderPos++;
     }
 
+    void increaseEncoderTotalTurnPos() {
+      encoderTotalTurnPos++;
+    }
+
+    void resetEncoderTotalTurnPos() {
+      encoderTotalTurnPos = 0;
+    }
+
+    unsigned long getEncoderTotalTurnPos() {
+      return encoderTotalTurnPos;
+    }
 
     float calculateSpeed();
     void forward(int intensity);
@@ -191,29 +193,30 @@ class Motor
     void stopMotor();
 
   private:
-    int pinAdelante;
-    int pinAtras;
+    int pinForward;
+    int pinBackward;
     int encoderA;
     int encoderB;
     float speed;
-    volatile unsigned long long encoderPos;
+    volatile unsigned long encoderPos;
     volatile int currentState = LOW;
     volatile int lastStateA  = LOW;
 
-    unsigned long long oldTime;
-    unsigned long long oldPos;
+    unsigned long oldTime;
+    unsigned long oldPos;
+    unsigned long encoderTotalTurnPos;
 };
 
-Motor::Motor(int pin1, int pin2, int eA, int eB)
+Motor::Motor(byte pin1, byte pin2, byte eA, byte eB)
 {
-  pinAdelante = pin1;
-  pinAtras = pin2;
+  pinForward = pin1;
+  pinBackward = pin2;
 
   encoderA = eA;
   encoderB = eB;
 
-  pinMode(pinAdelante, OUTPUT);
-  pinMode(pinAtras, OUTPUT);
+  pinMode(pinForward, OUTPUT);
+  pinMode(pinBackward, OUTPUT);
 
   pinMode(encoderA, INPUT);
   digitalWrite(encoderA, HIGH);
@@ -226,6 +229,8 @@ Motor::Motor(int pin1, int pin2, int eA, int eB)
 
   oldTime = 0;
   oldPos;
+
+  encoderTotalTurnPos = 0;
 }
 
 float Motor::calculateSpeed()
@@ -241,20 +246,20 @@ float Motor::calculateSpeed()
 
 void Motor::forward(int intensity)
 {
-  analogWrite(pinAdelante, intensity);
-  analogWrite(pinAtras, 0);
+  analogWrite(pinForward, intensity);
+  analogWrite(pinBackward, 0);
 }
 
 void Motor::backward(int intensity)
 {
-  analogWrite(pinAdelante, 0);
-  analogWrite(pinAtras, intensity);
+  analogWrite(pinForward, 0);
+  analogWrite(pinBackward, intensity);
 }
 
 void Motor::stopMotor()
 {
-  analogWrite(pinAdelante, 0);
-  analogWrite(pinAtras, 0);
+  analogWrite(pinForward, 0);
+  analogWrite(pinBackward, 0);
 }
 
 
@@ -269,34 +274,151 @@ class Control
 public:
   Control();
 
-  Motor getMotor1() {return motor1;}
-  Motor getMotor2() {return motor2;}
-  Motor getMotor3() {return motor3;}
-  Motor getMotor4() {return motor4;}
+  Motor& getMotor1() {return motor1;}
+  Motor& getMotor2() {return motor2;}
+  Motor& getMotor3() {return motor3;}
+  Motor& getMotor4() {return motor4;}
 
-  void forwardTile();
+  Ultrasonic getUltraSensorRight() {return ultraSensorRight;}
+  Ultrasonic getUltraSensorLeft() {return ultraSensorLeft;}
+  Ultrasonic getUltraSensorFront() {return ultraSensorFront;}
 
-private:
+  void forwardMotors(byte);
+  void stopMotors();
+
+  //Simple motor rotation only
+  void rotateRight(byte);
+  void rotateLeft(byte);
+
+  //90 degree rotation
+  void turnRight(byte);
+  void turnLeft(byte);
+
+  void forwardTile(byte);
+
   Motor motor1;
   Motor motor2;
   Motor motor3;
   Motor motor4;
+private:
+  
 
   Ultrasonic ultraSensorRight;
   Ultrasonic ultraSensorLeft;
+  Ultrasonic ultraSensorFront;
+
+  int turn90amount;
+  int forward30amount;
 
 };
 
 Control::Control() :
 motor1(5,4,19,25), motor2(6,7,18,24), motor3(8,9,3,23), motor4(11,10,2,22),
-ultraSensorRight(A5), ultraSensorLeft(A9)
+ultraSensorRight(A5), ultraSensorLeft(A9), ultraSensorFront(A8)
 {
-
+  turn90amount = 785;
+  forward30amount = 1620;
 }
 
-void Control::forwardTile()
+void Control::forwardMotors(byte intensity)
 {
+  motor1.forward(intensity);
+  motor2.forward(intensity);
+  motor3.forward(intensity);
+  motor4.forward(intensity);
+}
+
+void Control::stopMotors()
+{
+  motor1.stopMotor();
+  motor2.stopMotor();
+  motor3.stopMotor();
+  motor4.stopMotor();
+}
+
+void Control::rotateRight(byte intensity)
+{
+  motor1.forward(intensity);
+  motor4.forward(intensity);
+  motor3.backward(intensity);
+  motor2.backward(intensity);
+}
+
+void Control::rotateLeft(byte intensity)
+{
+  motor1.backward(intensity);
+  motor4.backward(intensity);
+  motor3.forward(intensity);
+  motor2.forward(intensity);
+}
+
+void Control::turnRight(byte intensity)
+{
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  rotateRight(intensity);
+
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > turn90amount && motor2.getEncoderTotalTurnPos() > turn90amount &&
+        motor3.getEncoderTotalTurnPos() > turn90amount && motor4.getEncoderTotalTurnPos() > turn90amount)
+    {
+      break;
+    }
+    
+  }
   
+
+  stopMotors();
+}
+
+void Control::turnLeft(byte intensity)
+{
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  rotateLeft(intensity);
+
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > turn90amount && motor2.getEncoderTotalTurnPos() > turn90amount &&
+        motor3.getEncoderTotalTurnPos() > turn90amount && motor4.getEncoderTotalTurnPos() > turn90amount)
+    {
+      break;
+    }
+  }
+
+  stopMotors();
+}
+
+void Control::forwardTile(byte intensity)
+{
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  forwardMotors(intensity);
+  
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > forward30amount && motor2.getEncoderTotalTurnPos() > forward30amount &&
+        motor3.getEncoderTotalTurnPos() > forward30amount && motor4.getEncoderTotalTurnPos() > forward30amount)
+    {
+      break;
+    }
+
+  }
+
+  stopMotors();
 }
 
 /*--------------------------------------
@@ -400,24 +522,28 @@ public:
 
   static void scanSides();
   static void moveToNextTile();
-  static Control getControl() {return control;}
+  static Control& getControl() {return control;}
 
-private:
   static Control control;
+private:
 
   static byte robotPosX;
   static byte robotPosY;
   static byte robotOrientation;
 
-  static Tile tiles[30][30];
+  static Tile tiles[10][5];
+
+  static byte intensity;
 
 };
 
 byte Navigation::robotOrientation = 0;
+byte Navigation::intensity = 150;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
-Tile Navigation::tiles[30][30];
+Tile Navigation::tiles[10][5];
+Control Navigation::control;
 
 void Navigation::start(byte matSize)
 {
@@ -443,29 +569,49 @@ void Navigation::scanSides()
   switch (robotOrientation)
   {
     case 0:
-      if (ultraSensorRight.getDistance() < 20)
+      if (control.getUltraSensorRight().getDistance() < 20)
       {
-        tile[robotPosX][robotPosY].wallRight.setWallExists(true);
+        tiles[robotPosX][robotPosY].wallRight.setWallExists(true);
       }
 
-      if (ultraSensorLeft.getDistance() < 20)
+      if (control.getUltraSensorLeft().getDistance() < 20)
       {
-        tile[robotPosX][robotPosY].wallRight.setWallExists(true);
+        tiles[robotPosX][robotPosY].wallLeft.setWallExists(true);
       }
 
+      if(control.getUltraSensorFront().getDistance() < 20)
+      {
+        
+      }
+
+
+      Serial.println(control.getUltraSensorFront().getDistance());
+      //Serial.println(control.getUltraSensorRight().getDistance());
+      //Serial.println(control.getUltraSensorLeft().getDistance());
+      
       break;
+      
     case 1:
+    
       break;
+      
     case 2:
+    
       break;
+      
     case 3:
+    
       break;
+      
+    default:
+      break;
+    
   }
 }
 
 void Navigation::moveToNextTile()
 {
-
+  control.forwardTile(intensity);
 }
 
 
@@ -482,283 +628,49 @@ void Navigation::moveToNextTile()
 
 void encodeInterruptM1()
 {
-  currentState = digitalRead(Navigation::getControl().getMotor1().getEncoderA());
-  if (currentState == HIGH)
+  if (digitalRead(Navigation::getControl().getMotor1().getEncoderA()))
   {
-    Navigation::getControl().getMotor1().increaseEncoderPos();
-    encoder1TotalTurnPos++;
+    Navigation::control.motor1.increaseEncoderPos();
+    Navigation::control.motor1.increaseEncoderTotalTurnPos();
   }
 
 }
 
 void encodeInterruptM2()
 {
-  currentState = digitalRead(Navigation::getControl().getMotor2().getEncoderA());
-  if (currentState == HIGH)
+  if (digitalRead(Navigation::getControl().getMotor2().getEncoderA()))
   {
-    Navigation::getControl().getMotor2().increaseEncoderPos();
-    interruptActive = true;
-    encoder2TotalTurnPos++;
+    Navigation::control.motor2.increaseEncoderPos();
+    Navigation::control.motor2.increaseEncoderTotalTurnPos();
   }
 }
 
 void encodeInterruptM3()
 {
-
-  currentState = digitalRead(Navigation::getControl().getMotor3().getEncoderA());
-  if (currentState == HIGH)
+  if (digitalRead(Navigation::getControl().getMotor3().getEncoderA()))
   {
-    Navigation::getControl().getMotor3().increaseEncoderPos();
-    encoder3TotalTurnPos++;
+    Navigation::control.motor3.increaseEncoderPos();
+    Navigation::control.motor3.increaseEncoderTotalTurnPos();
   }
 }
 
 void encodeInterruptM4()
 {
-  currentState = digitalRead(Navigation::getControl().getMotor4().getEncoderA());
-  if (currentState == HIGH)
+  if (digitalRead(Navigation::getControl().getMotor4().getEncoderA()))
   {
-    Navigation::getControl().getMotor4().increaseEncoderPos();
-    encoder4TotalTurnPos++;
+    Navigation::control.motor4.increaseEncoderPos();
+    Navigation::control.motor4.increaseEncoderTotalTurnPos();
   }
 }
 
-/*
-//VARIABLES
-volatile int currentState = LOW;
-volatile int lastStateA  = LOW;
-volatile bool interruptActive = false;
-volatile bool firstTurn90 = true;
 
-int turn90amount = 785;
-int forward30amount = 1620;
-
-long encoder1TotalTurnPos = 0;
-long encoder2TotalTurnPos = 0;
-long encoder3TotalTurnPos = 0;
-long encoder4TotalTurnPos = 0;
-
-byte gintensity = 250;
-*/
-//Class declarations
-/*
-Motor motor1(5, 4, 19, 25);
-Motor motor2(6, 7, 18, 24);
-Motor motor3(8, 9, 3, 23);
-Motor motor4(11, 10, 2, 22);
-
-volatile long motor1Pos = 0;
-volatile long motor2Pos = 0;
-volatile long motor3Pos = 0;
-volatile long motor4Pos = 0;
-
-float speedMotor1 = 0;
-float speedMotor2 = 0;
-float speedMotor3 = 0;
-float speedMotor4 = 0;
-
-Ultrasonic ultraSensor(A9);
-DigitalSharp sharpSensor(A6);
-LimitSwitch limitSensor(A2);
-*/
-
-//---------------------------------------------
-//Motor move functions
-
-/*
-void stopMotors()
-{
-  motor1.stopMotor();
-  motor2.stopMotor();
-  motor3.stopMotor();
-  motor4.stopMotor();
-}
-
-void forward(int intensity)
-{
-  motor1.forward(intensity);
-  motor2.forward(intensity);
-  motor3.forward(intensity);
-  motor4.forward(intensity);
-
-  speedMotor1 = motor1.calculateSpeed();
-  speedMotor2 = motor2.calculateSpeed();
-  speedMotor3 = motor3.calculateSpeed();
-  speedMotor4 = motor4.calculateSpeed();
-}
-
-void backward(int intensity)
-{
-  motor1.backward(intensity);
-  motor2.backward(intensity);
-  motor3.backward(intensity);
-  motor4.backward(intensity);
-
-  speedMotor1 = motor1.calculateSpeed();
-  speedMotor2 = motor2.calculateSpeed();
-  speedMotor3 = motor3.calculateSpeed();
-  speedMotor4 = motor4.calculateSpeed();
-}
-
-void rotate(bool isRight, int intensity)
-{
-  if (isRight)
-  {
-    motor1.forward(intensity);
-    motor4.forward(intensity);
-    motor3.backward(intensity);
-    motor2.backward(intensity);
-  }
-  else
-  {
-    motor1.backward(intensity);
-    motor2.backward(intensity);
-    motor3.forward(intensity);
-    motor4.forward(intensity);
-  }
-}
-
-void turnLeft(int intensity) {
-
-  motor1.backward(intensity);
-  motor2.backward(intensity);
-  motor3.forward(intensity);
-  motor4.forward(intensity);
-}
-
-void turnRight(int intensity) {
-
-  motor1.forward(intensity);
-  motor4.forward(intensity);
-  motor3.backward(intensity);
-  motor2.backward(intensity);
-}
-
-void turn90degRight(int intensity) {
-
-  if (firstTurn90)
-  {
-    turnRight(intensity);
-    encoder2TotalTurnPos = 0;
-    encoder3TotalTurnPos = 0;
-    encoder4TotalTurnPos = 0;
-    firstTurn90 = false;
-  }
-
-
-  if (encoder2TotalTurnPos > turn90amount && encoder3TotalTurnPos > turn90amount && encoder4TotalTurnPos > turn90amount)
-  {
-    turnRight(intensity);
-    firstTurn90 = true;
-  }
-}
-
-void turn90degLeft(int intensity) {
-
-  if (firstTurn90)
-  {
-    turnLeft(intensity);
-    encoder2TotalTurnPos = 0;
-    encoder3TotalTurnPos = 0;
-    encoder4TotalTurnPos = 0;
-    firstTurn90 = false;
-  }
-
-
-  if (encoder2TotalTurnPos > turn90amount && encoder3TotalTurnPos > turn90amount && encoder4TotalTurnPos > turn90amount)
-  {
-    turnRight(intensity);
-    firstTurn90 = true;
-  }
-}
-
-void conciousTurn90Left(int intensity)
-{
-  do
-  {
-    turn90degLeft(intensity);
-
-    speedMotor1 = motor1.calculateSpeed();
-    speedMotor2 = motor2.calculateSpeed();
-    speedMotor3 = motor3.calculateSpeed();
-    speedMotor4 = motor4.calculateSpeed();
-
-    Serial.println("Vel Motor1: ");
-    Serial.println(speedMotor1);
-    Serial.println("Vel Motor2: ");
-    Serial.println(speedMotor2);
-    Serial.println("Vel Motor3: ");
-    Serial.println(speedMotor3);
-    Serial.println("Vel Motor4: ");
-    Serial.println(speedMotor4);
-
-  }
-  while (!firstTurn90);
-
-  stopMotors();
-  delay(500);
-}
-
-void conciousTurn90Right(int intensity)
-{
-  do
-  {
-    turn90degRight(intensity);
-
-    speedMotor1 = motor1.calculateSpeed();
-    speedMotor2 = motor2.calculateSpeed();
-    speedMotor3 = motor3.calculateSpeed();
-    speedMotor4 = motor4.calculateSpeed();
-
-    Serial.println("Vel Motor1: ");
-    Serial.println(speedMotor1);
-    Serial.println("Vel Motor2: ");
-    Serial.println(speedMotor2);
-    Serial.println("Vel Motor3: ");
-    Serial.println(speedMotor3);
-    Serial.println("Vel Motor4: ");
-    Serial.println(speedMotor4);
-
-  }
-  while (!firstTurn90);
-
-  stopMotors();
-  delay(500);
-}
-
-void forwardAmount(int intensity)
-{
-  if (firstTurn90)
-  {
-    forward(intensity);
-    encoder2TotalTurnPos = 0;
-    encoder3TotalTurnPos = 0;
-    encoder4TotalTurnPos = 0;
-    firstTurn90 = false;
-  }
-
-
-  if (encoder2TotalTurnPos > forward30amount && encoder3TotalTurnPos > forward30amount && encoder4TotalTurnPos > forward30amount)
-  {
-    forward(intensity);
-    firstTurn90 = true;
-  }
-
-  Serial.println(encoder2TotalTurnPos);
-}
-
-void forward30(int intensity)
-{
-  do
-  {
-    forwardAmount(intensity);
-
-  }
-  while (!firstTurn90);
-
-  stopMotors();
-
-}
+/*--------------------------------------
+*
+*
+*         MAIN FUNCTIONS
+*
+*
+----------------------------------------
 */
 void setup() {
 
@@ -771,12 +683,13 @@ void setup() {
   enableInterrupt(Navigation::getControl().getMotor4().getEncoderA(), encodeInterruptM4, CHANGE);
   enableInterrupt(Navigation::getControl().getMotor4().getEncoderB(), encodeInterruptM4, CHANGE);
 
-  Navigation::start(20);
+  Navigation::start(5);
 
-  Serial.begin(9600);
+  Serial.begin(115200);
 }
 
 void loop() {
 
+  Navigation::scanSides();
 
 }
