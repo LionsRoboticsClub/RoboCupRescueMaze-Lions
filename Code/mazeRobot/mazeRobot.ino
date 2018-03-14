@@ -313,11 +313,11 @@ private:
 };
 
 Control::Control() :
-motor1(5,4,19,25), motor2(6,7,18,24), motor3(8,9,3,23), motor4(11,10,2,22),
-ultraSensorRight(A5), ultraSensorLeft(A9), ultraSensorFront(A8)
+motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A4)
 {
-  turn90amount = 785;
-  forward30amount = 1620;
+  turn90amount = 850;
+  forward30amount = 1480;
 }
 
 void Control::forwardMotors(byte intensity)
@@ -338,18 +338,18 @@ void Control::stopMotors()
 
 void Control::rotateRight(byte intensity)
 {
-  motor1.forward(intensity);
-  motor4.forward(intensity);
-  motor3.backward(intensity);
-  motor2.backward(intensity);
-}
-
-void Control::rotateLeft(byte intensity)
-{
   motor1.backward(intensity);
   motor4.backward(intensity);
   motor3.forward(intensity);
   motor2.forward(intensity);
+}
+
+void Control::rotateLeft(byte intensity)
+{
+  motor1.forward(intensity);
+  motor4.forward(intensity);
+  motor3.backward(intensity);
+  motor2.backward(intensity);
 }
 
 void Control::turnRight(byte intensity)
@@ -369,7 +369,12 @@ void Control::turnRight(byte intensity)
     {
       break;
     }
-    
+
+    ultraSensorRight.getDistance();
+    ultraSensorLeft.getDistance();
+    ultraSensorFront.getDistance();
+
+    delay(5);
   }
   
 
@@ -393,6 +398,12 @@ void Control::turnLeft(byte intensity)
     {
       break;
     }
+    
+    ultraSensorRight.getDistance();
+    ultraSensorLeft.getDistance();
+    ultraSensorFront.getDistance();
+    
+    delay(5);
   }
 
   stopMotors();
@@ -416,7 +427,15 @@ void Control::forwardTile(byte intensity)
       break;
     }
 
+    ultraSensorRight.getDistance();
+    ultraSensorLeft.getDistance();
+    ultraSensorFront.getDistance();
+    
+    delay(5);
+
   }
+
+  
 
   stopMotors();
 }
@@ -525,6 +544,9 @@ public:
   static void adjustToNextMove();
   static Control& getControl() {return control;}
 
+  static byte getRobotPosX() {return robotPosX;}
+  static byte getRobotPosY() {return robotPosY;}
+
   static Control control;
 
   
@@ -538,7 +560,7 @@ private:
 
   static possibleMoves nextMove;
 
-  static Tile tiles[10][5];
+  static Tile tiles[3][3];
 
   static byte intensity;
 
@@ -551,22 +573,22 @@ byte Navigation::intensity = 150;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
-Tile Navigation::tiles[10][5];
+Tile Navigation::tiles[3][3];
 Control Navigation::control;
 
 void Navigation::start(byte matSize)
 {
-  for (byte i = 0; i < matSize; ++i)
+  for (byte i = 0; i < 3; ++i)
   {
-    for (byte j = 0; j < matSize; ++j)
+    for (byte j = 0; j < 3; ++j)
     {
       tiles[i][j].setX(i);
       tiles[i][j].setX(j);
     }
   }
 
-  robotPosX = matSize/2;
-  robotPosY = matSize/2;
+  robotPosX = 0;
+  robotPosY = 2;
 
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
@@ -612,10 +634,6 @@ void Navigation::scanSides()
   {
     case Front:
 
-      frontAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
-
       //Scan all sides
       if (averageDistanceRight < 20)
       {
@@ -632,6 +650,10 @@ void Navigation::scanSides()
         tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
       }
 
+      frontAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      
       //Decide robots next move
       if (frontAvailable)
       {
@@ -679,10 +701,6 @@ void Navigation::scanSides()
       break;
       
     case Right:
-
-      frontAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
       
       if (averageDistanceRight < 20)
       {
@@ -699,6 +717,10 @@ void Navigation::scanSides()
         tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
       }
 
+      frontAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      
       //Decide robots next move
       if (frontAvailable)
       {
@@ -746,10 +768,6 @@ void Navigation::scanSides()
       break;
       
     case Left:
-
-      frontAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
       
       if (averageDistanceRight < 20)
       {
@@ -766,6 +784,10 @@ void Navigation::scanSides()
         tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
       }
 
+      frontAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      
       //Decide robots next move
       if (frontAvailable)
       {
@@ -1065,12 +1087,27 @@ void setup() {
 
   Navigation::start(5);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
+
+  delay(3000);
 }
 
 void loop() {
 
+  Serial.print(Navigation::getRobotPosX());
+  Serial.print(" , ");
+  Serial.println(Navigation::getRobotPosY());
   Navigation::scanSides();
+  
+  delay(1000);
+
+  Navigation::adjustToNextMove();
+
+  delay(2000);
+  
   Navigation::moveToNextTile();
+
+  delay(2000);
+
 
 }
