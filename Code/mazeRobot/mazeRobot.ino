@@ -522,14 +522,21 @@ public:
 
   static void scanSides();
   static void moveToNextTile();
+  static void adjustToNextMove();
   static Control& getControl() {return control;}
 
   static Control control;
+
+  
 private:
+  enum robotOrientation {Front, Back, Right, Left};
+  enum possibleMoves {MoveForward, TurnRight, TurnLeft, DeadEnd};
 
   static byte robotPosX;
   static byte robotPosY;
-  static byte robotOrientation;
+  static robotOrientation orientation;
+
+  static possibleMoves nextMove;
 
   static Tile tiles[10][5];
 
@@ -537,7 +544,9 @@ private:
 
 };
 
-byte Navigation::robotOrientation = 0;
+Navigation::robotOrientation Navigation::orientation = Front;
+Navigation::possibleMoves Navigation::nextMove = MoveForward;
+
 byte Navigation::intensity = 150;
 
 byte Navigation::robotPosX = 0;
@@ -559,59 +568,431 @@ void Navigation::start(byte matSize)
   robotPosX = matSize/2;
   robotPosY = matSize/2;
 
-  tiles[robotPosX][robotPosY].setIsRobotPresent(true);
-
-  robotOrientation = 0;
+  tiles[robotPosY][robotPosX].setIsRobotPresent(true);
+  tiles[robotPosY][robotPosX].setIsVisited(true);
 }
 
 void Navigation::scanSides()
 {
-  switch (robotOrientation)
+  bool frontAvailable;
+  bool rightAvailable;
+  bool leftAvailable;
+
+  float ultraDistances[20];
+  float sumUltraDistances = 0;
+
+  //Average the readings of the right sensor
+  for (int i = 0; i < 20; ++i)
   {
-    case 0:
-      if (control.getUltraSensorRight().getDistance() < 20)
+    ultraDistances[i] = control.getUltraSensorRight().getDistance();
+    sumUltraDistances += ultraDistances[i];
+  }
+
+  float averageDistanceRight = sumUltraDistances / 20;
+
+  //Average the readings of the left sensor
+  for (int i = 0; i < 20; ++i)
+  {
+    ultraDistances[i] = control.getUltraSensorLeft().getDistance();
+    sumUltraDistances += ultraDistances[i];
+  }
+
+  float averageDistanceLeft = sumUltraDistances / 20;
+
+  //Average the readings of the front sensor
+  for (int i = 0; i < 20; ++i)
+  {
+    ultraDistances[i] = control.getUltraSensorFront().getDistance();
+    sumUltraDistances += ultraDistances[i];
+  }
+
+  float averageDistanceFront = sumUltraDistances / 20;
+
+  switch (orientation)
+  {
+    case Front:
+
+      frontAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+
+      //Scan all sides
+      if (averageDistanceRight < 20)
       {
-        tiles[robotPosX][robotPosY].wallRight.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
       }
 
-      if (control.getUltraSensorLeft().getDistance() < 20)
+      if (averageDistanceLeft < 20)
       {
-        tiles[robotPosX][robotPosY].wallLeft.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
       }
 
-      if(control.getUltraSensorFront().getDistance() < 20)
+      if(averageDistanceFront < 20)
       {
-        
+        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
       }
 
+      //Decide robots next move
+      if (frontAvailable)
+      {
+        nextMove = MoveForward;
 
-      Serial.println(control.getUltraSensorFront().getDistance());
-      //Serial.println(control.getUltraSensorRight().getDistance());
-      //Serial.println(control.getUltraSensorLeft().getDistance());
-      
+        if (rightAvailable)
+        {
+          //There are several possible moves
+          tiles[robotPosY][robotPosX].setIsNode(true);
+        }
+        else
+        {
+          if(leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+      }
+      else
+      {
+        if (rightAvailable)
+        {
+          nextMove = TurnRight;
+
+          if (leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+        else
+        {
+          if (leftAvailable)
+          {
+            nextMove = TurnLeft;
+          }
+          else
+          {
+            nextMove = DeadEnd;
+          }
+        }
+      }
+
       break;
       
-    case 1:
-    
+    case Right:
+
+      frontAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      
+      if (averageDistanceRight < 20)
+      {
+        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
+      }
+
+      if (averageDistanceLeft < 20)
+      {
+        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+      }
+
+      if(averageDistanceFront < 20)
+      {
+        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
+      }
+
+      //Decide robots next move
+      if (frontAvailable)
+      {
+        nextMove = MoveForward;
+
+        if (rightAvailable)
+        {
+          //There are several possible moves
+          tiles[robotPosY][robotPosX].setIsNode(true);
+        }
+        else
+        {
+          if(leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+      }
+      else
+      {
+        if (rightAvailable)
+        {
+          nextMove = TurnRight;
+
+          if (leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+        else
+        {
+          if (leftAvailable)
+          {
+            nextMove = TurnLeft;
+          }
+          else
+          {
+            nextMove = DeadEnd;
+          }
+        }
+      }
+
       break;
       
-    case 2:
-    
+    case Left:
+
+      frontAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      
+      if (averageDistanceRight < 20)
+      {
+        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
+      }
+
+      if (averageDistanceLeft < 20)
+      {
+        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+      }
+
+      if(averageDistanceFront < 20)
+      {
+        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
+      }
+
+      //Decide robots next move
+      if (frontAvailable)
+      {
+        nextMove = MoveForward;
+
+        if (rightAvailable)
+        {
+          //There are several possible moves
+          tiles[robotPosY][robotPosX].setIsNode(true);
+        }
+        else
+        {
+          if(leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+      }
+      else
+      {
+        if (rightAvailable)
+        {
+          nextMove = TurnRight;
+
+          if (leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+        else
+        {
+          if (leftAvailable)
+          {
+            nextMove = TurnLeft;
+          }
+          else
+          {
+            nextMove = DeadEnd;
+          }
+        }
+      }
+
       break;
       
-    case 3:
-    
+    case Back:
+      
+      frontAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+
+      if (averageDistanceRight < 20)
+      {
+        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
+      }
+
+      if (averageDistanceLeft < 20)
+      {
+        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
+      }
+
+      if(averageDistanceFront < 20)
+      {
+        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+      }
+
+      //Decide robots next move
+      if (frontAvailable)
+      {
+        nextMove = MoveForward;
+
+        if (rightAvailable)
+        {
+          //There are several possible moves
+          tiles[robotPosY][robotPosX].setIsNode(true);
+        }
+        else
+        {
+          if(leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+      }
+      else
+      {
+        if (rightAvailable)
+        {
+          nextMove = TurnRight;
+
+          if (leftAvailable)
+          {
+            //There are several possible moves
+            tiles[robotPosY][robotPosX].setIsNode(true);
+          }
+        }
+        else
+        {
+          if (leftAvailable)
+          {
+            nextMove = TurnLeft;
+          }
+          else
+          {
+            nextMove = DeadEnd;
+          }
+        }
+      }
+
       break;
       
     default:
+      break;  
+  }
+}
+
+void Navigation::adjustToNextMove()
+{
+  switch(nextMove)
+  {
+    case MoveForward:
+
       break;
-    
+
+    case TurnRight:
+      control.turnRight(intensity);
+
+      switch(orientation)
+      {
+        case Front:
+          orientation = Right;
+
+          break;
+
+        case Left:
+          orientation = Front;
+          break;
+
+        case Right:
+          orientation = Back;
+          break;
+
+        case Back:
+          orientation = Left;
+          break;
+      }
+
+      break;
+
+    case TurnLeft:
+      control.turnLeft(intensity);
+
+      switch(orientation)
+      {
+        case Front:
+          orientation = Left;
+          break;
+
+        case Left:
+          orientation = Back;
+          break;
+
+        case Right:
+          orientation = Front;
+          break;
+
+        case Back:
+          orientation = Right;
+          break;
+      }
+      break;
+
+    case DeadEnd:
+      control.turnRight(intensity);
+      control.turnRight(intensity);
+
+      switch(orientation)
+      {
+        case Front:
+          orientation = Back;
+          break;
+
+        case Left:
+          orientation = Right;
+          break;
+
+        case Right:
+          orientation = Left;
+          break;
+
+        case Back:
+          orientation = Front;
+          break;
+      }
+
+      break;
   }
 }
 
 void Navigation::moveToNextTile()
 {
   control.forwardTile(intensity);
+
+  switch(orientation)
+  {
+    case Front:
+      robotPosY--;
+      break;
+
+    case Left:
+      robotPosX--;
+      break;
+
+    case Right:
+      orientation = Left;
+      robotPosX++;
+      break;
+
+    case Back:
+      robotPosY++;
+      break;
+  }
+
+  tiles[robotPosY][robotPosX].setIsRobotPresent(true);
+  tiles[robotPosY][robotPosX].setIsVisited(true);
 }
 
 
@@ -633,7 +1014,6 @@ void encodeInterruptM1()
     Navigation::control.motor1.increaseEncoderPos();
     Navigation::control.motor1.increaseEncoderTotalTurnPos();
   }
-
 }
 
 void encodeInterruptM2()
@@ -691,5 +1071,6 @@ void setup() {
 void loop() {
 
   Navigation::scanSides();
+  Navigation::moveToNextTile();
 
 }
