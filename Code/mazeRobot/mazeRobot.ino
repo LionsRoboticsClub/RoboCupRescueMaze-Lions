@@ -314,7 +314,7 @@ private:
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A4)
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3)
 {
   turn90amount = 850;
   forward30amount = 1480;
@@ -506,10 +506,10 @@ public:
   bool getIsNode() {return isNode;}
   bool getIsRobotPresent() {return isRobotPresent;}
 
-  Wall wallFront;
-  Wall wallRight;
-  Wall wallLeft;
-  Wall wallBack;
+  Wall wallNorth;
+  Wall wallEast;
+  Wall wallWest;
+  Wall wallSouth;
 
 private:
   byte x;
@@ -540,6 +540,7 @@ public:
   static void start(byte matSize);
 
   static void scanSides();
+
   static void moveToNextTile();
   static void adjustToNextMove();
   static Control& getControl() {return control;}
@@ -551,7 +552,7 @@ public:
 
   
 private:
-  enum robotOrientation {Front, Back, Right, Left};
+  enum robotOrientation {North, South, East, West};
   enum possibleMoves {MoveForward, TurnRight, TurnLeft, DeadEnd};
 
   static byte robotPosX;
@@ -564,9 +565,12 @@ private:
 
   static byte intensity;
 
+public:
+  static possibleMoves decideNextMove(bool, bool, bool);
+
 };
 
-Navigation::robotOrientation Navigation::orientation = Front;
+Navigation::robotOrientation Navigation::orientation = North;
 Navigation::possibleMoves Navigation::nextMove = MoveForward;
 
 byte Navigation::intensity = 150;
@@ -594,6 +598,56 @@ void Navigation::start(byte matSize)
   tiles[robotPosY][robotPosX].setIsVisited(true);
 }
 
+Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
+{
+  possibleMoves move;
+
+  if (frontAvailable)
+  {
+    move = MoveForward;
+
+    if (rightAvailable)
+    {
+      //There are several possible moves
+      tiles[robotPosY][robotPosX].setIsNode(true);
+    }
+    else
+    {
+      if(leftAvailable)
+      {
+        //There are several possible moves
+        tiles[robotPosY][robotPosX].setIsNode(true);
+      }
+    }
+  }
+  else
+  {
+    if (rightAvailable)
+    {
+      move = TurnRight;
+
+      if (leftAvailable)
+      {
+        //There are several possible moves
+        tiles[robotPosY][robotPosX].setIsNode(true);
+      }
+    }
+    else
+    {
+      if (leftAvailable)
+      {
+        move = TurnLeft;
+      }
+      else
+      {
+        move = DeadEnd;
+      }
+    }
+  }
+
+  return move;
+}
+
 void Navigation::scanSides()
 {
   bool frontAvailable;
@@ -603,15 +657,19 @@ void Navigation::scanSides()
   float ultraDistances[20];
   float sumUltraDistances = 0;
 
+  //GET DISTANCES--------------------------
+
   //Average the readings of the right sensor
   for (int i = 0; i < 20; ++i)
   {
     ultraDistances[i] = control.getUltraSensorRight().getDistance();
     sumUltraDistances += ultraDistances[i];
   }
-
+  
   float averageDistanceRight = sumUltraDistances / 20;
 
+  sumUltraDistances = 0;
+  
   //Average the readings of the left sensor
   for (int i = 0; i < 20; ++i)
   {
@@ -620,6 +678,8 @@ void Navigation::scanSides()
   }
 
   float averageDistanceLeft = sumUltraDistances / 20;
+
+  sumUltraDistances = 0;
 
   //Average the readings of the front sensor
   for (int i = 0; i < 20; ++i)
@@ -630,274 +690,117 @@ void Navigation::scanSides()
 
   float averageDistanceFront = sumUltraDistances / 20;
 
+  sumUltraDistances = 0;
+
+  //-------------------------------------------------------------
+
   switch (orientation)
   {
-    case Front:
+    case North:
 
       //Scan all sides
       if (averageDistanceRight < 20)
       {
-        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
+        Serial.println("Wall Right");
+        tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
+        Serial.println("Wall Left");
+        tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
+        Serial.println("Wall Front");
+        tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
       }
 
-      frontAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      frontAvailable = !tiles[robotPosY][robotPosX].wallNorth.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallEast.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallWest.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
       
       //Decide robots next move
-      if (frontAvailable)
-      {
-        nextMove = MoveForward;
-
-        if (rightAvailable)
-        {
-          //There are several possible moves
-          tiles[robotPosY][robotPosX].setIsNode(true);
-        }
-        else
-        {
-          if(leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-      }
-      else
-      {
-        if (rightAvailable)
-        {
-          nextMove = TurnRight;
-
-          if (leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-        else
-        {
-          if (leftAvailable)
-          {
-            nextMove = TurnLeft;
-          }
-          else
-          {
-            nextMove = DeadEnd;
-          }
-        }
-      }
+      nextMove = decideNextMove(frontAvailable, rightAvailable, leftAvailable);
 
       break;
       
-    case Right:
+    case East:
       
       if (averageDistanceRight < 20)
       {
-        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallSouth.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
       }
 
-      frontAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      frontAvailable = !tiles[robotPosY][robotPosX].wallEast.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallSouth.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallNorth.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
       
       //Decide robots next move
-      if (frontAvailable)
-      {
-        nextMove = MoveForward;
-
-        if (rightAvailable)
-        {
-          //There are several possible moves
-          tiles[robotPosY][robotPosX].setIsNode(true);
-        }
-        else
-        {
-          if(leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-      }
-      else
-      {
-        if (rightAvailable)
-        {
-          nextMove = TurnRight;
-
-          if (leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-        else
-        {
-          if (leftAvailable)
-          {
-            nextMove = TurnLeft;
-          }
-          else
-          {
-            nextMove = DeadEnd;
-          }
-        }
-      }
+      nextMove = decideNextMove(frontAvailable, rightAvailable, leftAvailable);
 
       break;
       
-    case Left:
+    case West:
       
       if (averageDistanceRight < 20)
       {
-        tiles[robotPosY][robotPosX].wallFront.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallSouth.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
       }
 
-      frontAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallFront.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      frontAvailable = !tiles[robotPosY][robotPosX].wallWest.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallNorth.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallSouth.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
       
       //Decide robots next move
-      if (frontAvailable)
-      {
-        nextMove = MoveForward;
-
-        if (rightAvailable)
-        {
-          //There are several possible moves
-          tiles[robotPosY][robotPosX].setIsNode(true);
-        }
-        else
-        {
-          if(leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-      }
-      else
-      {
-        if (rightAvailable)
-        {
-          nextMove = TurnRight;
-
-          if (leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-        else
-        {
-          if (leftAvailable)
-          {
-            nextMove = TurnLeft;
-          }
-          else
-          {
-            nextMove = DeadEnd;
-          }
-        }
-      }
+      nextMove = decideNextMove(frontAvailable, rightAvailable, leftAvailable);
 
       break;
       
-    case Back:
-      
-      frontAvailable = !tiles[robotPosY][robotPosX].wallBack.getWallExists() && !tiles[robotPosY-1][robotPosX].getIsVisited();
-      rightAvailable = !tiles[robotPosY][robotPosX].wallLeft.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
-      leftAvailable = !tiles[robotPosY][robotPosX].wallRight.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
+    case South:
 
       if (averageDistanceRight < 20)
       {
-        tiles[robotPosY][robotPosX].wallLeft.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        tiles[robotPosY][robotPosX].wallRight.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        tiles[robotPosY][robotPosX].wallBack.setWallExists(true);
+        tiles[robotPosY][robotPosX].wallSouth.setWallExists(true);
       }
+
+      frontAvailable = !tiles[robotPosY][robotPosX].wallSouth.getWallExists() && !tiles[robotPosY+1][robotPosX].getIsVisited();
+      rightAvailable = !tiles[robotPosY][robotPosX].wallWest.getWallExists() && !tiles[robotPosY][robotPosX-1].getIsVisited();
+      leftAvailable = !tiles[robotPosY][robotPosX].wallEast.getWallExists() && !tiles[robotPosY][robotPosX+1].getIsVisited();
 
       //Decide robots next move
-      if (frontAvailable)
-      {
-        nextMove = MoveForward;
-
-        if (rightAvailable)
-        {
-          //There are several possible moves
-          tiles[robotPosY][robotPosX].setIsNode(true);
-        }
-        else
-        {
-          if(leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-      }
-      else
-      {
-        if (rightAvailable)
-        {
-          nextMove = TurnRight;
-
-          if (leftAvailable)
-          {
-            //There are several possible moves
-            tiles[robotPosY][robotPosX].setIsNode(true);
-          }
-        }
-        else
-        {
-          if (leftAvailable)
-          {
-            nextMove = TurnLeft;
-          }
-          else
-          {
-            nextMove = DeadEnd;
-          }
-        }
-      }
+      nextMove = decideNextMove(frontAvailable, rightAvailable, leftAvailable); 
 
       break;
       
@@ -919,21 +822,21 @@ void Navigation::adjustToNextMove()
 
       switch(orientation)
       {
-        case Front:
-          orientation = Right;
+        case North:
+          orientation = East;
 
           break;
 
-        case Left:
-          orientation = Front;
+        case West:
+          orientation = North;
           break;
 
-        case Right:
-          orientation = Back;
+        case East:
+          orientation = South;
           break;
 
-        case Back:
-          orientation = Left;
+        case South:
+          orientation = West;
           break;
       }
 
@@ -944,20 +847,20 @@ void Navigation::adjustToNextMove()
 
       switch(orientation)
       {
-        case Front:
-          orientation = Left;
+        case North:
+          orientation = West;
           break;
 
-        case Left:
-          orientation = Back;
+        case West:
+          orientation = South;
           break;
 
-        case Right:
-          orientation = Front;
+        case East:
+          orientation = North;
           break;
 
-        case Back:
-          orientation = Right;
+        case South:
+          orientation = East;
           break;
       }
       break;
@@ -968,20 +871,20 @@ void Navigation::adjustToNextMove()
 
       switch(orientation)
       {
-        case Front:
-          orientation = Back;
+        case North:
+          orientation = South;
           break;
 
-        case Left:
-          orientation = Right;
+        case West:
+          orientation = East;
           break;
 
-        case Right:
-          orientation = Left;
+        case East:
+          orientation = West;
           break;
 
-        case Back:
-          orientation = Front;
+        case South:
+          orientation = North;
           break;
       }
 
@@ -995,20 +898,19 @@ void Navigation::moveToNextTile()
 
   switch(orientation)
   {
-    case Front:
+    case North:
       robotPosY--;
       break;
 
-    case Left:
+    case West:
       robotPosX--;
       break;
 
-    case Right:
-      orientation = Left;
+    case East:
       robotPosX++;
       break;
 
-    case Back:
+    case South:
       robotPosY++;
       break;
   }
@@ -1089,7 +991,7 @@ void setup() {
 
   Serial.begin(9600);
 
-  delay(3000);
+  delay(2000);
 }
 
 void loop() {
