@@ -653,19 +653,23 @@ void Navigation::scanSides()
   bool frontAvailable;
   bool rightAvailable;
   bool leftAvailable;
+/*
+  float ultraDistances[20];
+  float sumUltraDistances = 0;
+*/
+  //GET DISTANCES--------------------------
 
   float ultraDistances[20];
   float sumUltraDistances = 0;
-
-  //GET DISTANCES--------------------------
 
   //Average the readings of the right sensor
   for (int i = 0; i < 20; ++i)
   {
     ultraDistances[i] = control.getUltraSensorRight().getDistance();
     sumUltraDistances += ultraDistances[i];
+    delay(2);
   }
-  
+
   float averageDistanceRight = sumUltraDistances / 20;
 
   sumUltraDistances = 0;
@@ -675,6 +679,7 @@ void Navigation::scanSides()
   {
     ultraDistances[i] = control.getUltraSensorLeft().getDistance();
     sumUltraDistances += ultraDistances[i];
+    delay(2);
   }
 
   float averageDistanceLeft = sumUltraDistances / 20;
@@ -686,12 +691,12 @@ void Navigation::scanSides()
   {
     ultraDistances[i] = control.getUltraSensorFront().getDistance();
     sumUltraDistances += ultraDistances[i];
+    delay(2);
   }
 
   float averageDistanceFront = sumUltraDistances / 20;
 
   sumUltraDistances = 0;
-
   //-------------------------------------------------------------
 
   switch (orientation)
@@ -701,19 +706,22 @@ void Navigation::scanSides()
       //Scan all sides
       if (averageDistanceRight < 20)
       {
-        Serial.println("Wall Right");
+        Serial.print ("Wall Right  ");
+        Serial.println(averageDistanceRight);
         tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        Serial.println("Wall Left");
+        Serial.print("Wall Left  ");
+        Serial.println(averageDistanceLeft);
         tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        Serial.println("Wall Front");
+        Serial.print("Wall Front  ");
+        Serial.println(averageDistanceFront);
         tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
       }
 
@@ -1001,7 +1009,7 @@ void loop() {
   Serial.println(Navigation::getRobotPosY());
   Navigation::scanSides();
   
-  delay(1000);
+  delay(3000);
 
   Navigation::adjustToNextMove();
 
@@ -1010,6 +1018,5 @@ void loop() {
   Navigation::moveToNextTile();
 
   delay(2000);
-
 
 }
