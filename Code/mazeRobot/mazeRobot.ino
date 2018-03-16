@@ -1,6 +1,25 @@
+/*#include <doxygen.h>
+#include <NexButton.h>
+#include <NexConfig.h>
+#include <NexCrop.h>
+#include <NexGauge.h>
+#include <NexHotspot.h>
+#include <NexObject.h>
+#include <NexPage.h>
+#include <NexHardware.h>
+#include <NexPicture.h>
+#include <NexProgressBar.h>
+#include <NexSlider.h>
+#include <NexText.h>
+#include <Nextion.h>
+#include <NexTouch.h>
+#include <NexWaveform.h>
+*/
+
 #include <EnableInterrupt.h>
 #include <NewPing.h>
-#include <Adafruit_MLX90614.h>
+//#include <Adafruit_MLX90614.h>
+
 
 /*--------------------------------------
 *
@@ -48,6 +67,7 @@ bool LimitSwitch::isPushed()
 /*--------------------------------------
   Class Thermometer
 */
+/*
 class Thermometer
 {
   public:
@@ -67,7 +87,7 @@ Thermometer::Thermometer()
 float Thermometer::getTemperature()
 {
   return mlx.readObjectTempC();
-}
+}*/
 //---------------------------------------
 
 /*---------------------------------------
@@ -706,22 +726,22 @@ void Navigation::scanSides()
       //Scan all sides
       if (averageDistanceRight < 20)
       {
-        Serial.print ("Wall Right  ");
-        Serial.println(averageDistanceRight);
+        //Serial.print ("Wall Right  ");
+        //Serial.println(averageDistanceRight);
         tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
       }
 
       if (averageDistanceLeft < 20)
       {
-        Serial.print("Wall Left  ");
-        Serial.println(averageDistanceLeft);
+        //Serial.print("Wall Left  ");
+        //Serial.println(averageDistanceLeft);
         tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
       }
 
       if(averageDistanceFront < 20)
       {
-        Serial.print("Wall Front  ");
-        Serial.println(averageDistanceFront);
+        //Serial.print("Wall Front  ");
+        //Serial.println(averageDistanceFront);
         tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
       }
 
@@ -832,19 +852,49 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = East;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("East"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
 
           break;
 
         case West:
           orientation = North;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("North"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
+          
           break;
 
         case East:
           orientation = South;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("South"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
+          
           break;
 
         case South:
           orientation = West;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("West"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
       }
 
@@ -857,10 +907,24 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = West;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("West"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
 
         case West:
           orientation = South;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("South"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
 
         case East:
@@ -869,6 +933,13 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = East;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("East"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
       }
       break;
@@ -881,18 +952,46 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = South;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("South"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
 
         case West:
           orientation = East;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("East"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
 
         case East:
           orientation = West;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("West"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
 
         case South:
           orientation = North;
+          Serial.print("t1.txt=");
+          Serial.print("\""); 
+          Serial.print("North"); 
+          Serial.print("\"");  
+          Serial.write(0xff); 
+          Serial.write(0xff);
+          Serial.write(0xff);
           break;
       }
 
