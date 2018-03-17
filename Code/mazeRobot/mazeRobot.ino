@@ -1,3 +1,4 @@
+
 /*#include <doxygen.h>
 #include <NexButton.h>
 #include <NexConfig.h>
@@ -73,17 +74,14 @@ class Thermometer
   public:
     Thermometer();
     float getTemperature();
-
   private:
     float temperature;
     Adafruit_MLX90614 mlx;
 };
-
 Thermometer::Thermometer()
 {
   mlx.begin();
 }
-
 float Thermometer::getTemperature()
 {
   return mlx.readObjectTempC();
@@ -303,6 +301,12 @@ public:
   Ultrasonic getUltraSensorLeft() {return ultraSensorLeft;}
   Ultrasonic getUltraSensorFront() {return ultraSensorFront;}
 
+  LimitSwitch getLimitSwitchA(){return LimitSwitchA;}
+  LimitSwitch getLimitSwitchB(){return LimitSwitchB;}
+  LimitSwitch getLimitSwitchC(){return LimitSwitchC;}
+  LimitSwitch getLimitSwitchD(){return LimitSwitchD;}
+
+
   void forwardMotors(byte);
   void stopMotors();
 
@@ -315,12 +319,19 @@ public:
   void turnLeft(byte);
 
   void forwardTile(byte);
+  void alignForward(byte);
+  void backFiveCm(byte);
 
   Motor motor1;
   Motor motor2;
   Motor motor3;
   Motor motor4;
 private:
+
+  LimitSwitch LimitSwitchA;
+  LimitSwitch LimitSwitchB;
+  LimitSwitch LimitSwitchC;
+  LimitSwitch LimitSwitchD;
   
 
   Ultrasonic ultraSensorRight;
@@ -328,16 +339,19 @@ private:
   Ultrasonic ultraSensorFront;
 
   int turn90amount;
+  int back5amount;
   int forward30amount;
 
 };
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3)
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(26), LimitSwitchB(27), LimitSwitchC(28)
+, LimitSwitchD(29)
 {
   turn90amount = 850;
   forward30amount = 1480;
+  back5amount = (forward30amount/6);
 }
 
 void Control::forwardMotors(byte intensity)
@@ -401,6 +415,29 @@ void Control::turnRight(byte intensity)
   stopMotors();
 }
 
+
+void Control::backFiveCm(byte intensity){
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  forwardMotors(intensity);
+  
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > back5amount && motor2.getEncoderTotalTurnPos() > back5amount &&
+        motor3.getEncoderTotalTurnPos() > back5amount && motor4.getEncoderTotalTurnPos() > back5amount)
+    {
+      break;
+    }
+    
+    delay(5);
+
+}
+}
+
 void Control::turnLeft(byte intensity)
 {
   motor1.resetEncoderTotalTurnPos();
@@ -427,6 +464,16 @@ void Control::turnLeft(byte intensity)
   }
 
   stopMotors();
+}
+
+void Control::alignForward(byte intensity){
+  forwardMotors(intensity);
+
+  while(true){
+    if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchA.isPushed()||LimitSwitchB.isPushed())){
+      break;
+    }
+  }
 }
 
 void Control::forwardTile(byte intensity)
@@ -673,10 +720,7 @@ void Navigation::scanSides()
   bool frontAvailable;
   bool rightAvailable;
   bool leftAvailable;
-/*
-  float ultraDistances[20];
-  float sumUltraDistances = 0;
-*/
+
   //GET DISTANCES--------------------------
 
   float ultraDistances[20];
