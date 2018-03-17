@@ -31,7 +31,8 @@
 ----------------------------------------
 */
 
-
+byte mazeSizeX = 4;
+byte mazeSizeY = 4;
 /*--------------------------------------
 *
 *
@@ -466,11 +467,14 @@ void Control::turnLeft(byte intensity)
   stopMotors();
 }
 
-void Control::alignForward(byte intensity){
+void Control::alignForward(byte intensity)
+{
   forwardMotors(intensity);
 
-  while(true){
-    if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchA.isPushed()||LimitSwitchB.isPushed())){
+  while(true)
+  {
+    if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchC.isPushed()||LimitSwitchD.isPushed()))
+    {
       break;
     }
   }
@@ -568,10 +572,15 @@ public:
   void setIsVisited(bool value) {isVisited = value;}
   void setIsRobotPresent(bool value) {isRobotPresent = value;}
   void setIsNode(bool value) {isNode = value;}
+  void setFloorType(byte type) {floorType = type;}
+  void setSearchNumber(byte number) {searchNumber = number;}
 
   bool getIsVisited() {return isVisited;}
   bool getIsNode() {return isNode;}
   bool getIsRobotPresent() {return isRobotPresent;}
+  byte getFloorType() {return floorType;}
+  byte getSearchNumber() {return searchNumber;}
+
 
   Wall wallNorth;
   Wall wallEast;
@@ -584,6 +593,7 @@ private:
 
   bool isVisited, isNode, isRobotPresent;
   byte floorType;
+  byte searchNumber
 
 };
 
@@ -593,7 +603,9 @@ Tile::Tile()
   isNode = false;
   isRobotPresent = false;
 
-  byte floorType = 0;
+  floorType = 0;
+  searchNumber = 100;
+
 }
 //--------------------------------------
 
@@ -615,6 +627,8 @@ public:
   static byte getRobotPosX() {return robotPosX;}
   static byte getRobotPosY() {return robotPosY;}
 
+  static void findClosestNode();
+
   static Control control;
 
   
@@ -628,9 +642,14 @@ private:
 
   static possibleMoves nextMove;
 
-  static Tile tiles[3][3];
+  static Tile tiles[mazeSizeY][mazeSizeX];
 
   static byte intensity;
+
+  static bool nodeMode;
+  static bool mazeComplete;
+
+  static byte currentSearchNumber;
 
 public:
   static possibleMoves decideNextMove(bool, bool, bool);
@@ -640,20 +659,25 @@ public:
 Navigation::robotOrientation Navigation::orientation = North;
 Navigation::possibleMoves Navigation::nextMove = MoveForward;
 
-byte Navigation::intensity = 150;
+byte Navigation::intensity = 150; 
+
+byte Navigation::currentSearchNumber = 1;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
-Tile Navigation::tiles[3][3];
+Tile Navigation::tiles[mazeSizeY][mazeSizeX];
 Control Navigation::control;
+
+bool Navigation::nodeMode = false;
+bool Navigation::mazeComplete = false;
 
 void Navigation::start(byte matSize)
 {
-  for (byte i = 0; i < 3; ++i)
+  for (byte i = 0; i < mazeSizeY; ++i)
   {
-    for (byte j = 0; j < 3; ++j)
+    for (byte j = 0; j < mazeSizeX; ++j)
     {
-      tiles[i][j].setX(i);
+      tiles[i][j].setY(i);
       tiles[i][j].setX(j);
     }
   }
@@ -663,6 +687,110 @@ void Navigation::start(byte matSize)
 
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
+}
+
+bool Navigation::findClosestNode()
+{
+  bool nodeFound = false;
+  bool finished;
+
+  tiles[robotPosY][robotPosX].setSearchNumber(1);
+
+  currentSearchNumber = 1;
+
+  for (byte i = 0; i < mazeSizeY; ++i)
+  {
+    for (byte j = 0; j < mazeSizeX; ++j)
+    {
+      tiles[i][j].setSearchNumber(100);
+    }
+  }
+
+  while(!finished)
+  {
+    finished = true;
+
+    for (int i = 0; i < mazeSizeY; ++i)
+    {
+      for (int j = 0; j < mazeSizeX; ++j)
+      {
+        if (tiles[i][j].getSearchNumber() == currentSearchNumber)
+        {
+          //Check north available
+          if (!tiles[i-1][j].wallNorth.getWallExists())
+          {
+            if (tiles[i-1][j].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i-1][j].getIsNode();
+              finished = false;
+            }
+            if (nodeFound)
+            {
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check East available
+          if (!tiles[i][j].wallEast.getWallExists())
+          {
+            if (tiles[i][j+1].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j+1].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i][j+1].getIsNode();
+              finished = false;
+            }
+
+            if (nodeFound)
+            {
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check West available
+          if (!tiles[i][j].wallWest.getWallExists())
+          {
+            if (tiles[i][j-1].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j-1].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i][j-1].getIsNode();
+              finished = false;
+            }
+
+
+            if (nodeFound)
+            {
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check South available
+          if (!tiles[i][j].wallSouth.getWallExists())
+          {
+            if (tiles[i+1][j].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i+1][j].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i+1][j].getIsNode();
+              finished = false;
+            }
+            
+            if (nodeFound)
+            {
+              currentSearchNumber++;
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    currentSearchNumber++;
+  }
+
+  return true;
 }
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
@@ -707,7 +835,9 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       }
       else
       {
+        nodeMode = true;
         move = DeadEnd;
+        mazeComplete = findClosestNode();
       }
     }
   }
@@ -1145,21 +1275,29 @@ void setup() {
   delay(2000);
 }
 
-void loop() {
+void loop()
+{
+  if (!nodeMode)
+  {
+    Navigation::scanSides();
+    
+    if (nodeMode)
+    {
+      continue;
+    }
 
-  Serial.print(Navigation::getRobotPosX());
-  Serial.print(" , ");
-  Serial.println(Navigation::getRobotPosY());
-  Navigation::scanSides();
-  
-  delay(3000);
+    delay(500);
 
-  Navigation::adjustToNextMove();
+    Navigation::adjustToNextMove();
 
-  delay(2000);
-  
-  Navigation::moveToNextTile();
+    delay(500);
+    
+    Navigation::moveToNextTile();
 
-  delay(2000);
+    delay(500);
+  }
+  else
+  {
 
+  }
 }
