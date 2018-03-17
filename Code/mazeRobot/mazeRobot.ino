@@ -574,12 +574,14 @@ public:
   void setIsNode(bool value) {isNode = value;}
   void setFloorType(byte type) {floorType = type;}
   void setSearchNumber(byte number) {searchNumber = number;}
+  void setTraceNumber(byte number) {traceNumber = number;}
 
   bool getIsVisited() {return isVisited;}
   bool getIsNode() {return isNode;}
   bool getIsRobotPresent() {return isRobotPresent;}
   byte getFloorType() {return floorType;}
   byte getSearchNumber() {return searchNumber;}
+  byte getTraceNumber() {return traceNumber;}
 
 
   Wall wallNorth;
@@ -593,7 +595,8 @@ private:
 
   bool isVisited, isNode, isRobotPresent;
   byte floorType;
-  byte searchNumber
+  byte searchNumber;
+  byte traceNumber;
 
 };
 
@@ -605,6 +608,7 @@ Tile::Tile()
 
   floorType = 0;
   searchNumber = 100;
+  traceNumber = 0;
 
 }
 //--------------------------------------
@@ -628,6 +632,7 @@ public:
   static byte getRobotPosY() {return robotPosY;}
 
   static void findClosestNode();
+  static void tracePath();
 
   static Control control;
 
@@ -650,6 +655,8 @@ private:
   static bool mazeComplete;
 
   static byte currentSearchNumber;
+  static byte nodePosX;
+  static byte nodePosY;
 
 public:
   static possibleMoves decideNextMove(bool, bool, bool);
@@ -662,6 +669,8 @@ Navigation::possibleMoves Navigation::nextMove = MoveForward;
 byte Navigation::intensity = 150; 
 
 byte Navigation::currentSearchNumber = 1;
+byte Navigation::nodePosX = 0;
+byte Navigation::nodePosY = 0;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
@@ -727,6 +736,8 @@ bool Navigation::findClosestNode()
             }
             if (nodeFound)
             {
+              nodePosX = j;
+              nodePosY = i-1;
               currentSearchNumber++;
               return true;
             }
@@ -744,6 +755,8 @@ bool Navigation::findClosestNode()
 
             if (nodeFound)
             {
+              nodePosX = j+1;
+              nodePosY = i;
               currentSearchNumber++;
               return true;
             }
@@ -762,6 +775,8 @@ bool Navigation::findClosestNode()
 
             if (nodeFound)
             {
+              nodePosX = j-1;
+              nodePosY = i;
               currentSearchNumber++;
               return true;
             }
@@ -779,6 +794,8 @@ bool Navigation::findClosestNode()
             
             if (nodeFound)
             {
+              nodePosX = j;
+              nodePosY = i+1;
               currentSearchNumber++;
               return true;
             }
@@ -791,6 +808,73 @@ bool Navigation::findClosestNode()
   }
 
   return true;
+}
+
+void Navigation::tracePath()
+{
+  byte tracePosX = nodePosX;
+  byte tracePosY = nodePosY;
+
+  byte nextNumber = currentSearchNumber-1;
+
+  tiles[tracePosY][tracePosX].setTraceNumber(currentSearchNumber-nextNumber);
+
+  while (tracePosY != robotPosY && tracePosX != robotPosX)
+  {
+     //Check North
+    if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
+    {
+      if (tiles[tracePosY-1][tracePosX].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY-1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY-1;
+        tracePosX = tracePosX;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check East
+    if (!tiles[tracePosY][tracePosX].wallEast.getWallExists())
+    {
+      if (tiles[tracePosY][tracePosX+1].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY][tracePosX+1].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY;
+        tracePosX = tracePosX+1;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check West
+    if (!tiles[tracePosY][tracePosX].wallWest.getWallExists())
+    {
+      if (tiles[tracePosY][tracePosX-1].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY][tracePosX-1].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY;
+        tracePosX = tracePosX-1;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check South
+    if (!tiles[tracePosY][tracePosX].wallSouth.getWallExists())
+    {
+      if (tiles[tracePosY+1][tracePosX].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY+1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY+1;
+        tracePosX = tracePosX;
+        nextNumber++;
+        continue;
+      }
+    }
+  }
+
+  tiles[robotPosY][robotPosY].setTraceNumber(currentSearchNumber);
 }
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
@@ -838,6 +922,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
         nodeMode = true;
         move = DeadEnd;
         mazeComplete = findClosestNode();
+        tracePath();
       }
     }
   }
