@@ -329,8 +329,8 @@ private:
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(26), LimitSwitchB(27), LimitSwitchC(28)
-, LimitSwitchD(29)
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(26), LimitSwitchB(27), LimitSwitchC(29)
+, LimitSwitchD(28)
 {
   turn90amount = 850;
   forward30amount = 1480;
@@ -463,50 +463,7 @@ void Control::alignForward(byte intensity)
 
   while(true)
   {
-    if (LimitSwitchA.isPushed())
-    {
-      Serial2.print("n0.val=");
-      Serial2.print("\""); 
-      Serial2.print("1"); 
-      Serial2.print("\"");  
-      Serial2.write(0xff); 
-      Serial2.write(0xff);
-      Serial2.write(0xff);
-    }
-
-    if (LimitSwitchB.isPushed())
-    {
-      Serial2.print("n1.val=");
-      Serial2.print("\""); 
-      Serial2.print("1"); 
-      Serial2.print("\"");  
-      Serial2.write(0xff); 
-      Serial2.write(0xff);
-      Serial2.write(0xff);
-    }
-
-    if (LimitSwitchC.isPushed())
-    {
-      Serial2.print("n2.val=");
-      Serial2.print("\""); 
-      Serial2.print("1"); 
-      Serial2.print("\"");  
-      Serial2.write(0xff); 
-      Serial2.write(0xff);
-      Serial2.write(0xff);
-    }
-
-    if (LimitSwitchD.isPushed())
-    {
-      Serial2.print("n3.val=");
-      Serial2.print("\""); 
-      Serial2.print("1"); 
-      Serial2.print("\"");  
-      Serial2.write(0xff); 
-      Serial2.write(0xff);
-      Serial2.write(0xff);
-    }
-    if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchC.isPushed()||LimitSwitchD.isPushed()))
+    if(LimitSwitchA.isPushed()&&LimitSwitchD.isPushed())
     {
       
       break;
@@ -665,6 +622,8 @@ public:
 
   static byte getRobotPosX() {return robotPosX;}
   static byte getRobotPosY() {return robotPosY;}
+  static byte getNodePosX() {return nodePosX;}
+  static byte getNodePosY() {return nodePosY;}
   static bool getNodeMode() {return nodeMode;}
 
   static bool findClosestNode();
@@ -752,10 +711,6 @@ bool Navigation::findClosestNode()
   bool nodeFound = false;
   bool finished = false;
 
-  tiles[robotPosY][robotPosX].setSearchNumber(1);
-
-  currentSearchNumber = 1;
-
   for (byte i = 0; i < mazeSizeY; ++i)
   {
     for (byte j = 0; j < mazeSizeX; ++j)
@@ -763,6 +718,11 @@ bool Navigation::findClosestNode()
       tiles[i][j].setSearchNumber(100);
     }
   }
+
+  tiles[robotPosY][robotPosX].setSearchNumber(1);
+
+  currentSearchNumber = 1;
+
 
   while(!finished)
   {
@@ -775,20 +735,34 @@ bool Navigation::findClosestNode()
         if (tiles[i][j].getSearchNumber() == currentSearchNumber)
         {
           //Check north available
-          if (!tiles[i-1][j].wallNorth.getWallExists())
+          if (!tiles[i][j].wallNorth.getWallExists())
           {
             if (tiles[i-1][j].getSearchNumber() > currentSearchNumber+1)
             {
+              Serial.print("Set number ");
+              Serial.print(currentSearchNumber+1);
+              Serial.print(" at (");
+              Serial.print(i-1);
+              Serial.print(",");
+              Serial.print(j);
+              Serial.println(")");
               tiles[i][j].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i-1][j].getIsNode();
               finished = false;
             }
             if (nodeFound)
             {
+              Serial.println("Node found!");
+
               nodePosX = j;
               nodePosY = i-1;
+              Serial.print(" at (");
+              Serial.print(nodePosX);
+              Serial.print(",");
+              Serial.print(nodePosY);
+              Serial.println(")");
               currentSearchNumber++;
-              return true;
+              return false;
             }
           }
 
@@ -797,6 +771,13 @@ bool Navigation::findClosestNode()
           {
             if (tiles[i][j+1].getSearchNumber() > currentSearchNumber+1)
             {
+              Serial.print("Set number ");
+              Serial.print(currentSearchNumber+1);
+              Serial.print(" at (");
+              Serial.print(i);
+              Serial.print(",");
+              Serial.print(j+1);
+              Serial.println(")");
               tiles[i][j+1].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i][j+1].getIsNode();
               finished = false;
@@ -804,10 +785,16 @@ bool Navigation::findClosestNode()
 
             if (nodeFound)
             {
+              Serial.println("Node found!");
               nodePosX = j+1;
               nodePosY = i;
+              Serial.print(" at (");
+              Serial.print(nodePosX);
+              Serial.print(",");
+              Serial.print(nodePosY);
+              Serial.println(")");
               currentSearchNumber++;
-              return true;
+              return false;
             }
           }
 
@@ -816,6 +803,13 @@ bool Navigation::findClosestNode()
           {
             if (tiles[i][j-1].getSearchNumber() > currentSearchNumber+1)
             {
+              Serial.print("Set number ");
+              Serial.print(currentSearchNumber+1);
+              Serial.print(" at (");
+              Serial.print(i);
+              Serial.print(",");
+              Serial.print(j-1);
+              Serial.println(")");
               tiles[i][j-1].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i][j-1].getIsNode();
               finished = false;
@@ -823,10 +817,16 @@ bool Navigation::findClosestNode()
 
             if (nodeFound)
             {
+              Serial.println("Node found!");
               nodePosX = j-1;
               nodePosY = i;
+              Serial.print(" at (");
+              Serial.print(nodePosX);
+              Serial.print(",");
+              Serial.print(nodePosY);
+              Serial.println(")");
               currentSearchNumber++;
-              return true;
+              return false;
             }
           }
 
@@ -835,6 +835,13 @@ bool Navigation::findClosestNode()
           {
             if (tiles[i+1][j].getSearchNumber() > currentSearchNumber+1)
             {
+              Serial.print("Set number ");
+              Serial.print(currentSearchNumber+1);
+              Serial.print(" at (");
+              Serial.print(i+1);
+              Serial.print(",");
+              Serial.print(j);
+              Serial.println(")");
               tiles[i+1][j].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i+1][j].getIsNode();
               finished = false;
@@ -842,10 +849,16 @@ bool Navigation::findClosestNode()
             
             if (nodeFound)
             {
+              Serial.println("Node found!");
               nodePosX = j;
               nodePosY = i+1;
+              Serial.print(" at (");
+              Serial.print(nodePosX);
+              Serial.print(",");
+              Serial.print(nodePosY);
+              Serial.println(")");
               currentSearchNumber++;
-              return true;
+              return false;
             }
           }
         }
@@ -871,11 +884,19 @@ void Navigation::tracePath()
     }
   }
 
-  byte nextNumber = currentSearchNumber-1;
+  byte nextNumber = currentSearchNumber;
+  nextNumber--;
 
-  tiles[tracePosY][tracePosX].setTraceNumber(currentSearchNumber-nextNumber);
+  tiles[tracePosY][tracePosX].setTraceNumber(1);
+  Serial.print("Trace set ");
+        Serial.print(currentSearchNumber-nextNumber);
+        Serial.print(" at (");
+              Serial.print(tracePosX);
+              Serial.print(",");
+              Serial.print(tracePosY);
+              Serial.println(")");
 
-  while (tracePosY != robotPosY && tracePosX != robotPosX)
+  do 
   {
      //Check North
     if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
@@ -883,8 +904,16 @@ void Navigation::tracePath()
       if (tiles[tracePosY-1][tracePosX].getSearchNumber() == nextNumber)
       {
         tiles[tracePosY-1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+
+        Serial.print("Trace set ");
+        Serial.print(currentSearchNumber-nextNumber+1);
         tracePosY = tracePosY-1;
         tracePosX = tracePosX;
+        Serial.print(" at (");
+              Serial.print(tracePosX);
+              Serial.print(",");
+              Serial.print(tracePosY);
+              Serial.println(")");
         nextNumber--;
         continue;
       }
@@ -896,8 +925,15 @@ void Navigation::tracePath()
       if (tiles[tracePosY][tracePosX+1].getSearchNumber() == nextNumber)
       {
         tiles[tracePosY][tracePosX+1].setTraceNumber(currentSearchNumber-nextNumber+1);
+
+        Serial.print("Trace set ");
         tracePosY = tracePosY;
         tracePosX = tracePosX+1;
+        Serial.print(" at (");
+              Serial.print(tracePosX);
+              Serial.print(",");
+              Serial.print(tracePosY);
+              Serial.println(")");
         nextNumber--;
         continue;
       }
@@ -909,8 +945,15 @@ void Navigation::tracePath()
       if (tiles[tracePosY][tracePosX-1].getSearchNumber() == nextNumber)
       {
         tiles[tracePosY][tracePosX-1].setTraceNumber(currentSearchNumber-nextNumber+1);
+
+        Serial.print("Trace set ");
         tracePosY = tracePosY;
         tracePosX = tracePosX-1;
+        Serial.print(" at (");
+              Serial.print(tracePosX);
+              Serial.print(",");
+              Serial.print(tracePosY);
+              Serial.println(")");
         nextNumber--;
         continue;
       }
@@ -922,15 +965,27 @@ void Navigation::tracePath()
       if (tiles[tracePosY+1][tracePosX].getSearchNumber() == nextNumber)
       {
         tiles[tracePosY+1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+
+        Serial.print("Trace set ");
         tracePosY = tracePosY+1;
         tracePosX = tracePosX;
+        Serial.print(" at (");
+              Serial.print(tracePosX);
+              Serial.print(",");
+              Serial.print(tracePosY);
+              Serial.println(")");
         nextNumber--;
         continue;
       }
     }
+
   }
+  while (nextNumber > 0);
+
+  //(tracePosY != robotPosY && tracePosX != robotPosX)||(tracePosY==robotPosY||tracePosX==robotPosX)
 
   tiles[robotPosY][robotPosY].setTraceNumber(currentSearchNumber);
+  Serial.println("What the helllll");
 }
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
@@ -945,6 +1000,14 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
     {
       //There are several possible moves
       tiles[robotPosY][robotPosX].setIsNode(true);
+      Serial2.print("t0.txt=");
+      Serial2.print("\""); 
+      Serial2.print("NODE CRE"); 
+      Serial2.print("\"");  
+      Serial2.write(0xff); 
+      Serial2.write(0xff);
+      Serial2.write(0xff);
+
     }
     else
     {
@@ -952,6 +1015,14 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       {
         //There are several possible moves
         tiles[robotPosY][robotPosX].setIsNode(true);
+        Serial2.print("t0.txt=");
+        Serial2.print("\""); 
+        Serial2.print("NODE CRE"); 
+        Serial2.print("\"");  
+        Serial2.write(0xff); 
+        Serial2.write(0xff);
+        Serial2.write(0xff);
+
       }
     }
   }
@@ -965,6 +1036,14 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       {
         //There are several possible moves
         tiles[robotPosY][robotPosX].setIsNode(true);
+        Serial2.print("t0.txt=");
+        Serial2.print("\""); 
+        Serial2.print("NODE CRE"); 
+        Serial2.print("\"");  
+        Serial2.write(0xff); 
+        Serial2.write(0xff);
+        Serial2.write(0xff);
+
       }
     }
     else
@@ -1165,6 +1244,7 @@ void Navigation::adjustToTraceNumber()
       //Move North
       if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
       {
+        Serial.println("Move forward??");
         nextMove = MoveForward;
         return;
       }
@@ -1296,8 +1376,8 @@ void Navigation::adjustToNextMove()
       break;
 
     case TurnRight:
-      control.alignForward(intensity);
-      control.backFiveCm(intensity);
+      //control.alignForward(intensity);
+      //control.backFiveCm(intensity);
       delay(300);
       control.turnRight(intensity);
 
@@ -1305,56 +1385,56 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = East;
-          Serial2.print("t0.txt=");
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("EAST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case West:
           orientation = North;
-          Serial2.print("t0.txt=");
+        /*  Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("NORTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
           Serial2.write(0xff);
-          
+          */
           break;
 
         case East:
           orientation = South;
-          Serial2.print("t0.txt=");
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("SOUTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           
           break;
 
         case South:
           orientation = West;
-          Serial2.print("t0.txt=");
+          /*Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("WEST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
       }
 
       break;
 
     case TurnLeft:
-      control.alignForward(intensity);
-      control.backFiveCm(intensity);
+      //control.alignForward(intensity);
+      //control.backFiveCm(intensity);
       delay(300);
       control.turnLeft(intensity);
 
@@ -1362,24 +1442,24 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = West;
-          Serial2.print("t0.txt=");
+          /*Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("WEST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case West:
-          orientation = South;
-          Serial2.print("t0.txt=");
+         orientation = South;
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("SOUTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case East:
@@ -1388,20 +1468,20 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = East;
-          Serial2.print("t0.txt=");
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("EAST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
       }
       break;
 
     case DeadEnd:
-      control.alignForward(intensity);
-      control.backFiveCm(intensity);
+      //control.alignForward(intensity);
+      //control.backFiveCm(intensity);
       delay(300);
       control.turnRight(intensity);
       control.turnRight(intensity);
@@ -1410,46 +1490,46 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = South;
-          Serial2.print("t0.txt=");
+        /*  Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("SOUTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case West:
           orientation = East;
-          Serial2.print("t0.txt=");
+          /*Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("EAST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case East:
           orientation = West;
-          Serial2.print("t0.txt=");
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("WEST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
 
         case South:
           orientation = North;
-          Serial2.print("t0.txt=");
+         /* Serial2.print("t0.txt=");
           Serial2.print("\""); 
           Serial2.print("NORTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
-          Serial2.write(0xff);
+          Serial2.write(0xff);*/
           break;
       }
 
@@ -1562,6 +1642,18 @@ void setup() {
 
 void loop()
 {
+    Serial2.print("n0.val=");
+    Serial2.print(Navigation::getRobotPosX());  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n1.val=");
+    Serial2.print(Navigation::getRobotPosY());  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+    
   if (!Navigation::getNodeMode())
   {
     Serial2.print("t1.txt=");
@@ -1577,8 +1669,7 @@ void loop()
     {
       return;
     }
-
-
+    
     delay(100);
     Navigation::adjustToNextMove();
     delay(100);  
@@ -1589,47 +1680,38 @@ void loop()
   {
     Serial2.print("t1.txt=");
     Serial2.print("\""); 
-    Serial2.print("NODE"); 
-    Serial2.print("\"");  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Navigation::adjustToTraceNumber();
-    delay(100);
-    Navigation::moveToNextTile();
-    Navigation::checkNodeMode();
-  }
-
-    Serial2.print("n0.val=");
-    Serial2.print("\""); 
-    Serial2.print("0"); 
-    Serial2.print("\"");  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n1.val=");
-    Serial2.print("\""); 
-    Serial2.print("0"); 
+    Serial2.print("NODE MODE"); 
     Serial2.print("\"");  
     Serial2.write(0xff); 
     Serial2.write(0xff);
     Serial2.write(0xff);
 
     Serial2.print("n2.val=");
-    Serial2.print("\""); 
-    Serial2.print("0"); 
-    Serial2.print("\"");  
+    Serial2.print(Navigation::getNodePosX());  
     Serial2.write(0xff); 
     Serial2.write(0xff);
     Serial2.write(0xff);
 
     Serial2.print("n3.val=");
-    Serial2.print("\""); 
-    Serial2.print("0"); 
-    Serial2.print("\"");  
+    Serial2.print(Navigation::getNodePosY());  
     Serial2.write(0xff); 
     Serial2.write(0xff);
     Serial2.write(0xff);
+
+    Navigation::adjustToTraceNumber();
+    Navigation::adjustToNextMove();
+    delay(100);
+    Navigation::moveToNextTile();
+    Navigation::checkNodeMode();
+  }
+
+  Serial2.print("t0.txt=");
+  Serial2.print("\""); 
+  Serial2.print("NOPE"); 
+  Serial2.print("\"");  
+  Serial2.write(0xff); 
+  Serial2.write(0xff);
+  Serial2.write(0xff);
+
+
 }
