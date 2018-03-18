@@ -821,7 +821,6 @@ bool Navigation::findClosestNode()
               finished = false;
             }
 
-
             if (nodeFound)
             {
               nodePosX = j-1;
@@ -864,6 +863,14 @@ void Navigation::tracePath()
   byte tracePosX = nodePosX;
   byte tracePosY = nodePosY;
 
+  for (byte i = 0; i < mazeSizeY; ++i)
+  {
+    for (byte j = 0; j < mazeSizeX; ++j)
+    {
+      tiles[i][j].setTraceNumber(0);
+    }
+  }
+
   byte nextNumber = currentSearchNumber-1;
 
   tiles[tracePosY][tracePosX].setTraceNumber(currentSearchNumber-nextNumber);
@@ -878,7 +885,7 @@ void Navigation::tracePath()
         tiles[tracePosY-1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
         tracePosY = tracePosY-1;
         tracePosX = tracePosX;
-        nextNumber++;
+        nextNumber--;
         continue;
       }
     }
@@ -891,7 +898,7 @@ void Navigation::tracePath()
         tiles[tracePosY][tracePosX+1].setTraceNumber(currentSearchNumber-nextNumber+1);
         tracePosY = tracePosY;
         tracePosX = tracePosX+1;
-        nextNumber++;
+        nextNumber--;
         continue;
       }
     }
@@ -904,7 +911,7 @@ void Navigation::tracePath()
         tiles[tracePosY][tracePosX-1].setTraceNumber(currentSearchNumber-nextNumber+1);
         tracePosY = tracePosY;
         tracePosX = tracePosX-1;
-        nextNumber++;
+        nextNumber--;
         continue;
       }
     }
@@ -917,7 +924,7 @@ void Navigation::tracePath()
         tiles[tracePosY+1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
         tracePosY = tracePosY+1;
         tracePosX = tracePosX;
-        nextNumber++;
+        nextNumber--;
         continue;
       }
     }
@@ -968,6 +975,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       }
       else
       {
+        //ACTIVATE NODE MODE
         nodeMode = true;
         move = DeadEnd;
         mazeComplete = findClosestNode();
@@ -1588,8 +1596,6 @@ void loop()
     Serial2.write(0xff);
 
     Navigation::adjustToTraceNumber();
-    delay(100);
-    Navigation::adjustToNextMove();
     delay(100);
     Navigation::moveToNextTile();
     Navigation::checkNodeMode();
