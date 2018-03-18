@@ -1,20 +1,5 @@
-/*#include <doxygen.h>
-#include <NexButton.h>
-#include <NexConfig.h>
-#include <NexCrop.h>
-#include <NexGauge.h>
-#include <NexHotspot.h>
-#include <NexObject.h>
-#include <NexPage.h>
-#include <NexHardware.h>
-#include <NexPicture.h>
-#include <NexProgressBar.h>
-#include <NexSlider.h>
+#include <SoftwareSerial.h>
 #include <NexText.h>
-#include <Nextion.h>
-#include <NexTouch.h>
-#include <NexWaveform.h>
-*/
 
 #include <EnableInterrupt.h>
 #include <NewPing.h>
@@ -29,8 +14,11 @@
 *
 ----------------------------------------
 */
+NexText t1 = NexText(0,2,"t1");
+SoftwareSerial mySerial(17,16);
 
-
+int mazeSizeX = 4;
+int mazeSizeY = 4;
 /*--------------------------------------
 *
 *
@@ -73,17 +61,14 @@ class Thermometer
   public:
     Thermometer();
     float getTemperature();
-
   private:
     float temperature;
     Adafruit_MLX90614 mlx;
 };
-
 Thermometer::Thermometer()
 {
   mlx.begin();
 }
-
 float Thermometer::getTemperature()
 {
   return mlx.readObjectTempC();
@@ -303,6 +288,12 @@ public:
   Ultrasonic getUltraSensorLeft() {return ultraSensorLeft;}
   Ultrasonic getUltraSensorFront() {return ultraSensorFront;}
 
+  LimitSwitch getLimitSwitchA(){return LimitSwitchA;}
+  LimitSwitch getLimitSwitchB(){return LimitSwitchB;}
+  LimitSwitch getLimitSwitchC(){return LimitSwitchC;}
+  LimitSwitch getLimitSwitchD(){return LimitSwitchD;}
+
+
   void forwardMotors(byte);
   void stopMotors();
 
@@ -315,12 +306,19 @@ public:
   void turnLeft(byte);
 
   void forwardTile(byte);
+  void alignForward(byte);
+  void backFiveCm(byte);
 
   Motor motor1;
   Motor motor2;
   Motor motor3;
   Motor motor4;
 private:
+
+  LimitSwitch LimitSwitchA;
+  LimitSwitch LimitSwitchB;
+  LimitSwitch LimitSwitchC;
+  LimitSwitch LimitSwitchD;
   
 
   Ultrasonic ultraSensorRight;
@@ -328,16 +326,19 @@ private:
   Ultrasonic ultraSensorFront;
 
   int turn90amount;
+  int back5amount;
   int forward30amount;
 
 };
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3)
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(26), LimitSwitchB(27), LimitSwitchC(28)
+, LimitSwitchD(29)
 {
   turn90amount = 850;
   forward30amount = 1480;
+  back5amount = (forward30amount/6);
 }
 
 void Control::forwardMotors(byte intensity)
@@ -401,6 +402,29 @@ void Control::turnRight(byte intensity)
   stopMotors();
 }
 
+
+void Control::backFiveCm(byte intensity){
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  forwardMotors(intensity);
+  
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > back5amount && motor2.getEncoderTotalTurnPos() > back5amount &&
+        motor3.getEncoderTotalTurnPos() > back5amount && motor4.getEncoderTotalTurnPos() > back5amount)
+    {
+      break;
+    }
+    
+    delay(5);
+
+}
+}
+
 void Control::turnLeft(byte intensity)
 {
   motor1.resetEncoderTotalTurnPos();
@@ -427,6 +451,19 @@ void Control::turnLeft(byte intensity)
   }
 
   stopMotors();
+}
+
+void Control::alignForward(byte intensity)
+{
+  forwardMotors(intensity);
+
+  while(true)
+  {
+    if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchC.isPushed()||LimitSwitchD.isPushed()))
+    {
+      break;
+    }
+  }
 }
 
 void Control::forwardTile(byte intensity)
@@ -521,10 +558,17 @@ public:
   void setIsVisited(bool value) {isVisited = value;}
   void setIsRobotPresent(bool value) {isRobotPresent = value;}
   void setIsNode(bool value) {isNode = value;}
+  void setFloorType(byte type) {floorType = type;}
+  void setSearchNumber(byte number) {searchNumber = number;}
+  void setTraceNumber(byte number) {traceNumber = number;}
 
   bool getIsVisited() {return isVisited;}
   bool getIsNode() {return isNode;}
   bool getIsRobotPresent() {return isRobotPresent;}
+  byte getFloorType() {return floorType;}
+  byte getSearchNumber() {return searchNumber;}
+  byte getTraceNumber() {return traceNumber;}
+
 
   Wall wallNorth;
   Wall wallEast;
@@ -537,6 +581,8 @@ private:
 
   bool isVisited, isNode, isRobotPresent;
   byte floorType;
+  byte searchNumber;
+  byte traceNumber;
 
 };
 
@@ -546,7 +592,10 @@ Tile::Tile()
   isNode = false;
   isRobotPresent = false;
 
-  byte floorType = 0;
+  floorType = 0;
+  searchNumber = 100;
+  traceNumber = 0;
+
 }
 //--------------------------------------
 
@@ -560,6 +609,7 @@ public:
   static void start(byte matSize);
 
   static void scanSides();
+  static void adjustToTraceNumber();
 
   static void moveToNextTile();
   static void adjustToNextMove();
@@ -567,6 +617,12 @@ public:
 
   static byte getRobotPosX() {return robotPosX;}
   static byte getRobotPosY() {return robotPosY;}
+  static bool getNodeMode() {return nodeMode;}
+
+  static bool findClosestNode();
+  static void tracePath();
+
+  static void checkNodeMode();
 
   static Control control;
 
@@ -581,9 +637,16 @@ private:
 
   static possibleMoves nextMove;
 
-  static Tile tiles[3][3];
+  static Tile tiles[4][4];
 
   static byte intensity;
+
+  static bool nodeMode;
+  static bool mazeComplete;
+
+  static byte currentSearchNumber;
+  static byte nodePosX;
+  static byte nodePosY;
 
 public:
   static possibleMoves decideNextMove(bool, bool, bool);
@@ -593,29 +656,226 @@ public:
 Navigation::robotOrientation Navigation::orientation = North;
 Navigation::possibleMoves Navigation::nextMove = MoveForward;
 
-byte Navigation::intensity = 150;
+byte Navigation::intensity = 150; 
+
+byte Navigation::currentSearchNumber = 1;
+byte Navigation::nodePosX = 0;
+byte Navigation::nodePosY = 0;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
-Tile Navigation::tiles[3][3];
+Tile Navigation::tiles[4][4];
 Control Navigation::control;
+
+bool Navigation::nodeMode = false;
+bool Navigation::mazeComplete = false;
 
 void Navigation::start(byte matSize)
 {
-  for (byte i = 0; i < 3; ++i)
+  for (byte i = 0; i < mazeSizeY; ++i)
   {
-    for (byte j = 0; j < 3; ++j)
+    for (byte j = 0; j < mazeSizeX; ++j)
     {
-      tiles[i][j].setX(i);
+      tiles[i][j].setY(i);
       tiles[i][j].setX(j);
     }
   }
 
   robotPosX = 0;
-  robotPosY = 2;
+  robotPosY = 3;
 
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
+}
+
+void Navigation::checkNodeMode()
+{
+  if (nodePosY == robotPosY)
+  {
+    if (nodePosX == robotPosX)
+    {
+      nodeMode = false;
+    }
+  }
+}
+
+bool Navigation::findClosestNode()
+{
+  bool nodeFound = false;
+  bool finished = false;
+
+  tiles[robotPosY][robotPosX].setSearchNumber(1);
+
+  currentSearchNumber = 1;
+
+  for (byte i = 0; i < mazeSizeY; ++i)
+  {
+    for (byte j = 0; j < mazeSizeX; ++j)
+    {
+      tiles[i][j].setSearchNumber(100);
+    }
+  }
+
+  while(!finished)
+  {
+    finished = true;
+
+    for (int i = 0; i < mazeSizeY; ++i)
+    {
+      for (int j = 0; j < mazeSizeX; ++j)
+      {
+        if (tiles[i][j].getSearchNumber() == currentSearchNumber)
+        {
+          //Check north available
+          if (!tiles[i-1][j].wallNorth.getWallExists())
+          {
+            if (tiles[i-1][j].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i-1][j].getIsNode();
+              finished = false;
+            }
+            if (nodeFound)
+            {
+              nodePosX = j;
+              nodePosY = i-1;
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check East available
+          if (!tiles[i][j].wallEast.getWallExists())
+          {
+            if (tiles[i][j+1].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j+1].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i][j+1].getIsNode();
+              finished = false;
+            }
+
+            if (nodeFound)
+            {
+              nodePosX = j+1;
+              nodePosY = i;
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check West available
+          if (!tiles[i][j].wallWest.getWallExists())
+          {
+            if (tiles[i][j-1].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i][j-1].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i][j-1].getIsNode();
+              finished = false;
+            }
+
+
+            if (nodeFound)
+            {
+              nodePosX = j-1;
+              nodePosY = i;
+              currentSearchNumber++;
+              return true;
+            }
+          }
+
+          //Check South available
+          if (!tiles[i][j].wallSouth.getWallExists())
+          {
+            if (tiles[i+1][j].getSearchNumber() > currentSearchNumber+1)
+            {
+              tiles[i+1][j].setSearchNumber(currentSearchNumber+1);
+              nodeFound = tiles[i+1][j].getIsNode();
+              finished = false;
+            }
+            
+            if (nodeFound)
+            {
+              nodePosX = j;
+              nodePosY = i+1;
+              currentSearchNumber++;
+              return true;
+            }
+          }
+        }
+      }
+    }
+
+    currentSearchNumber++;
+  }
+
+  return true;
+}
+
+void Navigation::tracePath()
+{
+  byte tracePosX = nodePosX;
+  byte tracePosY = nodePosY;
+
+  byte nextNumber = currentSearchNumber-1;
+
+  tiles[tracePosY][tracePosX].setTraceNumber(currentSearchNumber-nextNumber);
+
+  while (tracePosY != robotPosY && tracePosX != robotPosX)
+  {
+     //Check North
+    if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
+    {
+      if (tiles[tracePosY-1][tracePosX].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY-1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY-1;
+        tracePosX = tracePosX;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check East
+    if (!tiles[tracePosY][tracePosX].wallEast.getWallExists())
+    {
+      if (tiles[tracePosY][tracePosX+1].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY][tracePosX+1].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY;
+        tracePosX = tracePosX+1;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check West
+    if (!tiles[tracePosY][tracePosX].wallWest.getWallExists())
+    {
+      if (tiles[tracePosY][tracePosX-1].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY][tracePosX-1].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY;
+        tracePosX = tracePosX-1;
+        nextNumber++;
+        continue;
+      }
+    }
+
+     //Check South
+    if (!tiles[tracePosY][tracePosX].wallSouth.getWallExists())
+    {
+      if (tiles[tracePosY+1][tracePosX].getSearchNumber() == nextNumber)
+      {
+        tiles[tracePosY+1][tracePosX].setTraceNumber(currentSearchNumber-nextNumber+1);
+        tracePosY = tracePosY+1;
+        tracePosX = tracePosX;
+        nextNumber++;
+        continue;
+      }
+    }
+  }
+
+  tiles[robotPosY][robotPosY].setTraceNumber(currentSearchNumber);
 }
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
@@ -660,7 +920,10 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       }
       else
       {
+        nodeMode = true;
         move = DeadEnd;
+        mazeComplete = findClosestNode();
+        tracePath();
       }
     }
   }
@@ -673,10 +936,7 @@ void Navigation::scanSides()
   bool frontAvailable;
   bool rightAvailable;
   bool leftAvailable;
-/*
-  float ultraDistances[20];
-  float sumUltraDistances = 0;
-*/
+
   //GET DISTANCES--------------------------
 
   float ultraDistances[20];
@@ -837,6 +1097,140 @@ void Navigation::scanSides()
   }
 }
 
+void Navigation::adjustToTraceNumber()
+{
+  //CheckFront
+  byte currentTraceNumber = tiles[robotPosY][robotPosX].getTraceNumber();
+
+  switch (orientation)
+  {
+    case North:
+
+      //Move North
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      {
+        nextMove = MoveForward;
+        return;
+      }
+
+      //Move East
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      {
+        nextMove = TurnRight;
+        return;
+      }
+
+      //Move West
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      {
+        nextMove = TurnLeft;
+        return;
+      }
+
+      //Move South
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      {
+        nextMove = DeadEnd;
+        return;
+      }
+
+      break;
+
+    case East:
+
+      //Move North
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      {
+        nextMove = TurnLeft;
+        return;
+      }
+
+      //Move East
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      {
+        nextMove = MoveForward;
+        return;
+      }
+
+      //Move West
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      {
+        nextMove = DeadEnd;
+        return;
+      }
+
+      //Move South
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      {
+        nextMove = TurnRight;
+        return;
+      }
+
+      break;
+    case West:
+      //Move North
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      {
+        nextMove = TurnRight;
+        return;
+      }
+
+      //Move East
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      {
+        nextMove = DeadEnd;
+        return;
+      }
+
+      //Move West
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      {
+        nextMove = MoveForward;
+        return;
+      }
+
+      //Move South
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      {
+        nextMove = TurnLeft;
+        return;
+      }
+      break;
+
+    case South:
+
+      //Move North
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      {
+        nextMove = DeadEnd;
+        return;
+      }
+
+      //Move East
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      {
+        nextMove = TurnLeft;
+        return;
+      }
+
+      //Move West
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      {
+        nextMove = TurnRight;
+        return;
+      }
+
+      //Move South
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      {
+        nextMove = MoveForward;
+        return;
+      }
+
+      break;
+  }
+}
+
 void Navigation::adjustToNextMove()
 {
   switch(nextMove)
@@ -851,50 +1245,48 @@ void Navigation::adjustToNextMove()
       switch(orientation)
       {
         case North:
-          orientation = East;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("East"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
-
+           mySerial.print("t0.txt=");  // This is sent to the nextion display to set what object name (before the dot) and what atribute (after the dot) are you going to change.
+    mySerial.print("\"");  // Since we are sending text we need to send double quotes before and after the actual text.
+    mySerial.print("East");  // This is the text we want to send to that object and atribute mention before.
+    mySerial.print("\"");  // Since we are sending text we need to send double quotes before and after the actual text.
+    mySerial.write(0xff);  // We always have to send this three lines after each command sent to the nextion display.
+    mySerial.write(0xff);
+    mySerial.write(0xff);
           break;
 
         case West:
           orientation = North;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("North"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.write("t1.txt=");
+          Serial2.write("\""); 
+          Serial2.write("East"); 
+          Serial2.write("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           
           break;
 
         case East:
           orientation = South;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("South"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.write("t1.txt=");
+          Serial2.write("\""); 
+          Serial2.write("East"); 
+          Serial2.write("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           
           break;
 
         case South:
           orientation = West;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("West"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.write("t1.txt=");
+          Serial2.write("\""); 
+          Serial2.write("East"); 
+          Serial2.write("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
       }
 
@@ -907,24 +1299,24 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = West;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("West"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("West"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case West:
           orientation = South;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("South"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("South"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case East:
@@ -933,13 +1325,13 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = East;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("East"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("East"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
       }
       break;
@@ -952,46 +1344,46 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = South;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("South"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("South"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case West:
           orientation = East;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("East"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("East"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case East:
           orientation = West;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("West"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("West"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case South:
           orientation = North;
-          Serial.print("t1.txt=");
-          Serial.print("\""); 
-          Serial.print("North"); 
-          Serial.print("\"");  
-          Serial.write(0xff); 
-          Serial.write(0xff);
-          Serial.write(0xff);
+          Serial2.print("t1.txt=");
+          Serial2.print("\""); 
+          Serial2.print("North"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
       }
 
@@ -1097,25 +1489,41 @@ void setup() {
   Navigation::start(5);
 
   Serial.begin(9600);
+  mySerial.begin(9600);
+  nexInit();
 
   delay(2000);
 }
 
-void loop() {
+void loop()
+{
+  /*
+  if (!Navigation::getNodeMode())
+  {
+    Navigation::scanSides();
+    
+    if (Navigation::getNodeMode())
+    {
+      return;
+    }
 
-  Serial.print(Navigation::getRobotPosX());
-  Serial.print(" , ");
-  Serial.println(Navigation::getRobotPosY());
+    delay(500);
+    Navigation::adjustToNextMove();
+    delay(500);  
+    Navigation::moveToNextTile();
+    delay(500);
+  }
+  else
+  {
+
+    Navigation::adjustToTraceNumber();
+    delay(500);
+    Navigation::adjustToNextMove();
+    delay(500);
+    Navigation::moveToNextTile();
+    Navigation::checkNodeMode();
+  }
+  */
+
   Navigation::scanSides();
-  
-  delay(3000);
-
-  Navigation::adjustToNextMove();
-
-  delay(2000);
-  
-  Navigation::moveToNextTile();
-
-  delay(2000);
-
 }
