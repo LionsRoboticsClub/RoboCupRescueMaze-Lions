@@ -1,21 +1,4 @@
-<<<<<<< HEAD
 #include <SoftwareSerial.h>
-=======
-
-/*#include <doxygen.h>
-#include <NexButton.h>
-#include <NexConfig.h>
-#include <NexCrop.h>
-#include <NexGauge.h>
-#include <NexHotspot.h>
-#include <NexObject.h>
-#include <NexPage.h>
-#include <NexHardware.h>
-#include <NexPicture.h>
-#include <NexProgressBar.h>
-#include <NexSlider.h>
->>>>>>> c2583c5f84347c5376f6500bd7310116676a1bb4
-#include <NexText.h>
 
 #include <EnableInterrupt.h>
 #include <NewPing.h>
@@ -30,7 +13,7 @@
 *
 ----------------------------------------
 */
-NexText t1 = NexText(0,2,"t1");
+
 SoftwareSerial mySerial(17,16);
 
 int mazeSizeX = 4;
@@ -1506,17 +1489,15 @@ void setup() {
 
   Serial.begin(9600);
   mySerial.begin(9600);
-  nexInit();
+
 
   delay(2000);
 }
 
 void loop()
 {
-<<<<<<< HEAD
+
   /*
-=======
->>>>>>> c2583c5f84347c5376f6500bd7310116676a1bb4
   if (!Navigation::getNodeMode())
   {
     Navigation::scanSides();
@@ -1525,7 +1506,7 @@ void loop()
     {
       return;
     }
-<<<<<<< HEAD
+
 
     delay(500);
     Navigation::adjustToNextMove();
@@ -1545,33 +1526,4 @@ void loop()
   }
   */
 
-  Navigation::scanSides();
-=======
-
-    delay(500);
-
-    Navigation::adjustToNextMove();
-
-    delay(500);
-    
-    Navigation::moveToNextTile();
-
-    delay(500);
-  }
-  else
-  {
-
-    Navigation::adjustToTraceNumber();
-
-    delay(500);
-
-    Navigation::adjustToNextMove();
-
-    delay(500);
-
-    Navigation::moveToNextTile();
-
-    Navigation::checkNodeMode();
-  }
->>>>>>> c2583c5f84347c5376f6500bd7310116676a1bb4
 }
