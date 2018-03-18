@@ -1,5 +1,3 @@
-#include <SoftwareSerial.h>
-
 #include <EnableInterrupt.h>
 #include <NewPing.h>
 //#include <Adafruit_MLX90614.h>
@@ -13,8 +11,6 @@
 *
 ----------------------------------------
 */
-
-SoftwareSerial mySerial(17,16);
 
 int mazeSizeX = 4;
 int mazeSizeY = 4;
@@ -294,6 +290,7 @@ public:
 
 
   void forwardMotors(byte);
+  void backwardMotors(byte);
   void stopMotors();
 
   //Simple motor rotation only
@@ -346,6 +343,14 @@ void Control::forwardMotors(byte intensity)
   motor2.forward(intensity);
   motor3.forward(intensity);
   motor4.forward(intensity);
+}
+
+void Control::backwardMotors(byte intensity)
+{
+  motor1.backward(intensity);
+  motor2.backward(intensity);
+  motor3.backward(intensity);
+  motor4.backward(intensity);
 }
 
 void Control::stopMotors()
@@ -408,7 +413,7 @@ void Control::backFiveCm(byte intensity){
   motor3.resetEncoderTotalTurnPos();
   motor4.resetEncoderTotalTurnPos();
 
-  forwardMotors(intensity);
+  backwardMotors(intensity);
   
   //Add sensor scanning in this area for more precision or obstacles
   while (true)
@@ -458,8 +463,52 @@ void Control::alignForward(byte intensity)
 
   while(true)
   {
+    if (LimitSwitchA.isPushed())
+    {
+      Serial2.print("n0.val=");
+      Serial2.print("\""); 
+      Serial2.print("1"); 
+      Serial2.print("\"");  
+      Serial2.write(0xff); 
+      Serial2.write(0xff);
+      Serial2.write(0xff);
+    }
+
+    if (LimitSwitchB.isPushed())
+    {
+      Serial2.print("n1.val=");
+      Serial2.print("\""); 
+      Serial2.print("1"); 
+      Serial2.print("\"");  
+      Serial2.write(0xff); 
+      Serial2.write(0xff);
+      Serial2.write(0xff);
+    }
+
+    if (LimitSwitchC.isPushed())
+    {
+      Serial2.print("n2.val=");
+      Serial2.print("\""); 
+      Serial2.print("1"); 
+      Serial2.print("\"");  
+      Serial2.write(0xff); 
+      Serial2.write(0xff);
+      Serial2.write(0xff);
+    }
+
+    if (LimitSwitchD.isPushed())
+    {
+      Serial2.print("n3.val=");
+      Serial2.print("\""); 
+      Serial2.print("1"); 
+      Serial2.print("\"");  
+      Serial2.write(0xff); 
+      Serial2.write(0xff);
+      Serial2.write(0xff);
+    }
     if((LimitSwitchA.isPushed()||LimitSwitchB.isPushed())&&(LimitSwitchC.isPushed()||LimitSwitchD.isPushed()))
     {
+      
       break;
     }
   }
@@ -1239,26 +1288,30 @@ void Navigation::adjustToNextMove()
       break;
 
     case TurnRight:
+      control.alignForward(intensity);
+      control.backFiveCm(intensity);
+      delay(300);
       control.turnRight(intensity);
 
       switch(orientation)
       {
         case North:
-           mySerial.print("t0.txt=");  // This is sent to the nextion display to set what object name (before the dot) and what atribute (after the dot) are you going to change.
-    mySerial.print("\"");  // Since we are sending text we need to send double quotes before and after the actual text.
-    mySerial.print("East");  // This is the text we want to send to that object and atribute mention before.
-    mySerial.print("\"");  // Since we are sending text we need to send double quotes before and after the actual text.
-    mySerial.write(0xff);  // We always have to send this three lines after each command sent to the nextion display.
-    mySerial.write(0xff);
-    mySerial.write(0xff);
+          orientation = East;
+          Serial2.print("t0.txt=");
+          Serial2.print("\""); 
+          Serial2.print("EAST"); 
+          Serial2.print("\"");  
+          Serial2.write(0xff); 
+          Serial2.write(0xff);
+          Serial2.write(0xff);
           break;
 
         case West:
           orientation = North;
-          Serial2.write("t1.txt=");
-          Serial2.write("\""); 
-          Serial2.write("East"); 
-          Serial2.write("\"");  
+          Serial2.print("t0.txt=");
+          Serial2.print("\""); 
+          Serial2.print("NORTH"); 
+          Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
           Serial2.write(0xff);
@@ -1267,10 +1320,10 @@ void Navigation::adjustToNextMove()
 
         case East:
           orientation = South;
-          Serial2.write("t1.txt=");
-          Serial2.write("\""); 
-          Serial2.write("East"); 
-          Serial2.write("\"");  
+          Serial2.print("t0.txt=");
+          Serial2.print("\""); 
+          Serial2.print("SOUTH"); 
+          Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
           Serial2.write(0xff);
@@ -1279,10 +1332,10 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = West;
-          Serial2.write("t1.txt=");
-          Serial2.write("\""); 
-          Serial2.write("East"); 
-          Serial2.write("\"");  
+          Serial2.print("t0.txt=");
+          Serial2.print("\""); 
+          Serial2.print("WEST"); 
+          Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
           Serial2.write(0xff);
@@ -1292,15 +1345,18 @@ void Navigation::adjustToNextMove()
       break;
 
     case TurnLeft:
+      control.alignForward(intensity);
+      control.backFiveCm(intensity);
+      delay(300);
       control.turnLeft(intensity);
 
       switch(orientation)
       {
         case North:
           orientation = West;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("West"); 
+          Serial2.print("WEST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1309,9 +1365,9 @@ void Navigation::adjustToNextMove()
 
         case West:
           orientation = South;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("South"); 
+          Serial2.print("SOUTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1324,9 +1380,9 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = East;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("East"); 
+          Serial2.print("EAST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1336,6 +1392,9 @@ void Navigation::adjustToNextMove()
       break;
 
     case DeadEnd:
+      control.alignForward(intensity);
+      control.backFiveCm(intensity);
+      delay(300);
       control.turnRight(intensity);
       control.turnRight(intensity);
 
@@ -1343,9 +1402,9 @@ void Navigation::adjustToNextMove()
       {
         case North:
           orientation = South;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("South"); 
+          Serial2.print("SOUTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1354,9 +1413,9 @@ void Navigation::adjustToNextMove()
 
         case West:
           orientation = East;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("East"); 
+          Serial2.print("EAST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1365,9 +1424,9 @@ void Navigation::adjustToNextMove()
 
         case East:
           orientation = West;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("West"); 
+          Serial2.print("WEST"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1376,9 +1435,9 @@ void Navigation::adjustToNextMove()
 
         case South:
           orientation = North;
-          Serial2.print("t1.txt=");
+          Serial2.print("t0.txt=");
           Serial2.print("\""); 
-          Serial2.print("North"); 
+          Serial2.print("NORTH"); 
           Serial2.print("\"");  
           Serial2.write(0xff); 
           Serial2.write(0xff);
@@ -1488,18 +1547,22 @@ void setup() {
   Navigation::start(5);
 
   Serial.begin(9600);
-  mySerial.begin(9600);
+  Serial2.begin(9600);
 
-
-  delay(2000);
+  delay(500);
 }
 
 void loop()
 {
-
-  /*
   if (!Navigation::getNodeMode())
   {
+    Serial2.print("t1.txt=");
+    Serial2.print("\""); 
+    Serial2.print("NO NODE"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
     Navigation::scanSides();
     
     if (Navigation::getNodeMode())
@@ -1508,22 +1571,59 @@ void loop()
     }
 
 
-    delay(500);
+    delay(100);
     Navigation::adjustToNextMove();
-    delay(500);  
+    delay(100);  
     Navigation::moveToNextTile();
-    delay(500);
+    delay(100);
   }
   else
   {
+    Serial2.print("t1.txt=");
+    Serial2.print("\""); 
+    Serial2.print("NODE"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
 
     Navigation::adjustToTraceNumber();
-    delay(500);
+    delay(100);
     Navigation::adjustToNextMove();
-    delay(500);
+    delay(100);
     Navigation::moveToNextTile();
     Navigation::checkNodeMode();
   }
-  */
 
+    Serial2.print("n0.val=");
+    Serial2.print("\""); 
+    Serial2.print("0"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n1.val=");
+    Serial2.print("\""); 
+    Serial2.print("0"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n2.val=");
+    Serial2.print("\""); 
+    Serial2.print("0"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n3.val=");
+    Serial2.print("\""); 
+    Serial2.print("0"); 
+    Serial2.print("\"");  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
 }
