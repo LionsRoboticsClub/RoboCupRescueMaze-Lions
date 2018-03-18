@@ -631,6 +631,8 @@ public:
 
   static void checkNodeMode();
 
+  static void eraseNodes();
+
   static Control control;
 
   
@@ -702,6 +704,35 @@ void Navigation::checkNodeMode()
     if (nodePosX == robotPosX)
     {
       nodeMode = false;
+    }
+  }
+}
+
+void Navigation::eraseNodes()
+{
+  bool northBlocked = true;
+  bool westBlocked = true;
+  bool eastBlocked = true;
+  bool southBlocked = true;
+
+
+  for (byte i = 0; i < mazeSizeY; ++i)
+  {
+    for (byte j = 0; j < mazeSizeX; ++j)
+    {
+      if (tiles[i][j].getIsNode())
+      {
+
+        northBlocked = tiles[i][j].wallNorth.getWallExists() || tiles[i-1][j].getIsVisited();
+        westBlocked = tiles[i][j].wallWest.getWallExists() || tiles[i][j-1].getIsVisited();
+        eastBlocked = tiles[i][j].wallEast.getWallExists() || tiles[i][j+1].getIsVisited();
+        southBlocked = tiles[i][j].wallSouth.getWallExists() || tiles[i+1][j].getIsVisited();
+
+        if (northBlocked && westBlocked && eastBlocked && southBlocked)
+        {
+          tiles[i][j].setIsNode(false);  
+        }
+      }
     }
   }
 }
@@ -1703,7 +1734,10 @@ void loop()
     delay(100);
     Navigation::moveToNextTile();
     Navigation::checkNodeMode();
+
   }
+
+  Navigation::eraseNodes();
 
   Serial2.print("t0.txt=");
   Serial2.print("\""); 
