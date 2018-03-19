@@ -14,6 +14,9 @@
 
 int mazeSizeX = 4;
 int mazeSizeY = 4;
+
+int robotStartPosX = 0;
+int robotStartPosY = 3;
 /*--------------------------------------
 *
 *
@@ -625,8 +628,9 @@ public:
   static byte getNodePosX() {return nodePosX;}
   static byte getNodePosY() {return nodePosY;}
   static bool getNodeMode() {return nodeMode;}
+  static bool getMazeComplete() {return mazeComplete;}
 
-  static bool findClosestNode();
+  static void findClosestNode();
   static void tracePath();
 
   static void checkNodeMode();
@@ -690,8 +694,8 @@ void Navigation::start(byte matSize)
     }
   }
 
-  robotPosX = 0;
-  robotPosY = 3;
+  robotPosX = robotStartPosX;
+  robotPosY = robotStartPosY;
 
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
@@ -737,17 +741,28 @@ void Navigation::eraseNodes()
   }
 }
 
-bool Navigation::findClosestNode()
+void Navigation::findClosestNode()
 {
   bool nodeFound = false;
   bool finished = false;
+  mazeComplete = true;
 
   for (byte i = 0; i < mazeSizeY; ++i)
   {
     for (byte j = 0; j < mazeSizeX; ++j)
     {
       tiles[i][j].setSearchNumber(100);
+
+      if (tiles[i][j].getIsNode())
+      {
+        mazeComplete = false;
+      }
     }
+  }
+
+  if (mazeComplete)
+  {
+    tiles[robotStartPosY][robotStartPosX].setIsNode(true);
   }
 
   tiles[robotPosY][robotPosX].setSearchNumber(1);
@@ -793,7 +808,7 @@ bool Navigation::findClosestNode()
               Serial.print(nodePosY);
               Serial.println(")");
               currentSearchNumber++;
-              return false;
+              return;
             }
           }
 
@@ -825,7 +840,7 @@ bool Navigation::findClosestNode()
               Serial.print(nodePosY);
               Serial.println(")");
               currentSearchNumber++;
-              return false;
+              return;
             }
           }
 
@@ -857,7 +872,7 @@ bool Navigation::findClosestNode()
               Serial.print(nodePosY);
               Serial.println(")");
               currentSearchNumber++;
-              return false;
+              return;
             }
           }
 
@@ -889,7 +904,7 @@ bool Navigation::findClosestNode()
               Serial.print(nodePosY);
               Serial.println(")");
               currentSearchNumber++;
-              return false;
+              return;
             }
           }
         }
@@ -898,12 +913,16 @@ bool Navigation::findClosestNode()
 
     currentSearchNumber++;
   }
-
-  return true;
 }
 
 void Navigation::tracePath()
 {
+  if (mazeComplete)
+  {
+    byte tracePosX = robotStartPosY;
+    byte tracePosY = robotStartPosX;
+  }
+
   byte tracePosX = nodePosX;
   byte tracePosY = nodePosY;
 
@@ -1088,7 +1107,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
         //ACTIVATE NODE MODE
         nodeMode = true;
         move = DeadEnd;
-        mazeComplete = findClosestNode();
+        findClosestNode();
         tracePath();
       }
     }
@@ -1687,6 +1706,11 @@ void loop()
     
   if (!Navigation::getNodeMode())
   {
+    if (Navigation::getMazeComplete)
+    {
+      delay(10000);
+    }
+    
     Serial2.print("t1.txt=");
     Serial2.print("\""); 
     Serial2.print("NO NODE"); 
