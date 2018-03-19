@@ -669,7 +669,7 @@ public:
 Navigation::robotOrientation Navigation::orientation = North;
 Navigation::possibleMoves Navigation::nextMove = MoveForward;
 
-byte Navigation::intensity = 150; 
+byte Navigation::intensity = 255; 
 
 byte Navigation::currentSearchNumber = 1;
 byte Navigation::nodePosX = 0;
@@ -751,7 +751,7 @@ void Navigation::findClosestNode()
   {
     for (byte j = 0; j < mazeSizeX; ++j)
     {
-      tiles[i][j].setSearchNumber(100);
+      tiles[i][j].setSearchNumber(103);
 
       if (tiles[i][j].getIsNode())
       {
@@ -948,6 +948,18 @@ void Navigation::tracePath()
 
   do 
   {
+
+    Serial2.print("n0.val=");
+    Serial2.print(tiles[tracePosY][tracePosX-1].getSearchNumber());  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n1.val=");
+    Serial2.print(nextNumber);  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
      //Check North
     if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
     {
@@ -1105,6 +1117,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       else
       {
         //ACTIVATE NODE MODE
+        Serial.println("DEAD END");
         nodeMode = true;
         move = DeadEnd;
         findClosestNode();
@@ -1706,7 +1719,7 @@ void loop()
     
   if (!Navigation::getNodeMode())
   {
-    if (Navigation::getMazeComplete)
+    if (Navigation::getMazeComplete())
     {
       delay(10000);
     }
