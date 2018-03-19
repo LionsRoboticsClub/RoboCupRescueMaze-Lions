@@ -429,7 +429,7 @@ void Control::backFiveCm(byte intensity){
     
     delay(5);
 
-}
+  }
 }
 
 void Control::turnLeft(byte intensity)
@@ -617,7 +617,7 @@ public:
   static void start(byte matSize);
 
   static void scanSides();
-  static void adjustToTraceNumber();
+  static void decideToTraceNumber();
 
   static void moveToNextTile();
   static void adjustToNextMove();
@@ -629,6 +629,7 @@ public:
   static byte getNodePosY() {return nodePosY;}
   static bool getNodeMode() {return nodeMode;}
   static bool getMazeComplete() {return mazeComplete;}
+  static bool getActivateNode() {return activateNode;}
 
   static void findClosestNode();
   static void tracePath();
@@ -656,6 +657,7 @@ private:
 
   static bool nodeMode;
   static bool mazeComplete;
+  static bool activateNode;
 
   static byte currentSearchNumber;
   static byte nodePosX;
@@ -682,6 +684,7 @@ Control Navigation::control;
 
 bool Navigation::nodeMode = false;
 bool Navigation::mazeComplete = false;
+bool Navigation::activateNode = true;
 
 void Navigation::start(byte matSize)
 {
@@ -689,8 +692,25 @@ void Navigation::start(byte matSize)
   {
     for (byte j = 0; j < mazeSizeX; ++j)
     {
-      tiles[i][j].setY(i);
-      tiles[i][j].setX(j);
+      if (j==0)
+      {
+        tiles[i][j].wallWest.setWallExists(true);
+      }
+
+      if (j == mazeSizeX-1)
+      {
+        tiles[i][j].wallEast.setWallExists(true);
+      }
+
+      if (i==0)
+      {
+        tiles[i][j].wallNorth.setWallExists(true);
+      }
+
+      if (i== mazeSizeY-1)
+      {
+        tiles[i][j].wallSouth.setWallExists(true);
+      }
     }
   }
 
@@ -745,6 +765,7 @@ void Navigation::findClosestNode()
 {
   bool nodeFound = false;
   bool finished = false;
+  bool activateNode = false;
   mazeComplete = true;
 
   for (byte i = 0; i < mazeSizeY; ++i)
@@ -770,10 +791,8 @@ void Navigation::findClosestNode()
   currentSearchNumber = 1;
 
 
-  while(!finished)
+  while(true)
   {
-    finished = true;
-
     for (int i = 0; i < mazeSizeY; ++i)
     {
       for (int j = 0; j < mazeSizeX; ++j)
@@ -792,9 +811,10 @@ void Navigation::findClosestNode()
               Serial.print(",");
               Serial.print(j);
               Serial.println(")");
-              tiles[i][j].setSearchNumber(currentSearchNumber+1);
+
+              //KEBEEERRRRR
+              tiles[i-1][j].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i-1][j].getIsNode();
-              finished = false;
             }
             if (nodeFound)
             {
@@ -826,7 +846,6 @@ void Navigation::findClosestNode()
               Serial.println(")");
               tiles[i][j+1].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i][j+1].getIsNode();
-              finished = false;
             }
 
             if (nodeFound)
@@ -852,13 +871,12 @@ void Navigation::findClosestNode()
               Serial.print("Set number ");
               Serial.print(currentSearchNumber+1);
               Serial.print(" at (");
-              Serial.print(i);
-              Serial.print(",");
               Serial.print(j-1);
+              Serial.print(",");
+              Serial.print(i);
               Serial.println(")");
               tiles[i][j-1].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i][j-1].getIsNode();
-              finished = false;
             }
 
             if (nodeFound)
@@ -872,6 +890,8 @@ void Navigation::findClosestNode()
               Serial.print(nodePosY);
               Serial.println(")");
               currentSearchNumber++;
+
+              //Y EL RETURN???
               return;
             }
           }
@@ -890,7 +910,6 @@ void Navigation::findClosestNode()
               Serial.println(")");
               tiles[i+1][j].setSearchNumber(currentSearchNumber+1);
               nodeFound = tiles[i+1][j].getIsNode();
-              finished = false;
             }
             
             if (nodeFound)
@@ -913,14 +932,17 @@ void Navigation::findClosestNode()
 
     currentSearchNumber++;
   }
+
+  Serial.println("Out of found loop");
 }
 
 void Navigation::tracePath()
 {
+  //ELIMINAR ESTE IF
   if (mazeComplete)
   {
-    byte tracePosX = robotStartPosY;
-    byte tracePosY = robotStartPosX;
+    byte tracePosX = robotStartPosX;
+    byte tracePosY = robotStartPosY;
   }
 
   byte tracePosX = nodePosX;
@@ -938,6 +960,7 @@ void Navigation::tracePath()
   nextNumber--;
 
   tiles[tracePosY][tracePosX].setTraceNumber(1);
+
   Serial.print("Trace set ");
         Serial.print(currentSearchNumber-nextNumber);
         Serial.print(" at (");
@@ -960,6 +983,7 @@ void Navigation::tracePath()
     Serial2.write(0xff); 
     Serial2.write(0xff);
     Serial2.write(0xff);
+
      //Check North
     if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
     {
@@ -1120,8 +1144,6 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
         Serial.println("DEAD END");
         nodeMode = true;
         move = DeadEnd;
-        findClosestNode();
-        tracePath();
       }
     }
   }
@@ -1134,6 +1156,8 @@ void Navigation::scanSides()
   bool frontAvailable;
   bool rightAvailable;
   bool leftAvailable;
+
+  activateNode = true;
 
   //GET DISTANCES--------------------------
 
@@ -1295,7 +1319,7 @@ void Navigation::scanSides()
   }
 }
 
-void Navigation::adjustToTraceNumber()
+void Navigation::decideToTraceNumber()
 {
   //CheckFront
   byte currentTraceNumber = tiles[robotPosY][robotPosX].getTraceNumber();
@@ -1305,7 +1329,8 @@ void Navigation::adjustToTraceNumber()
     case North:
 
       //Move North
-      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallNorth.getWallExists())
       {
         Serial.println("Move forward??");
         nextMove = MoveForward;
@@ -1313,21 +1338,24 @@ void Navigation::adjustToTraceNumber()
       }
 
       //Move East
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallEast.getWallExists())
       {
         nextMove = TurnRight;
         return;
       }
 
       //Move West
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallWest.getWallExists())
       {
         nextMove = TurnLeft;
         return;
       }
 
       //Move South
-      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallSouth.getWallExists())
       {
         nextMove = DeadEnd;
         return;
@@ -1338,28 +1366,32 @@ void Navigation::adjustToTraceNumber()
     case East:
 
       //Move North
-      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallNorth.getWallExists())
       {
         nextMove = TurnLeft;
         return;
       }
 
       //Move East
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallEast.getWallExists())
       {
         nextMove = MoveForward;
         return;
       }
 
       //Move West
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallWest.getWallExists())
       {
         nextMove = DeadEnd;
         return;
       }
 
       //Move South
-      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallSouth.getWallExists())
       {
         nextMove = TurnRight;
         return;
@@ -1368,28 +1400,32 @@ void Navigation::adjustToTraceNumber()
       break;
     case West:
       //Move North
-      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallNorth.getWallExists())
       {
         nextMove = TurnRight;
         return;
       }
 
       //Move East
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallEast.getWallExists())
       {
         nextMove = DeadEnd;
         return;
       }
 
       //Move West
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallWest.getWallExists())
       {
         nextMove = MoveForward;
         return;
       }
 
       //Move South
-      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallSouth.getWallExists())
       {
         nextMove = TurnLeft;
         return;
@@ -1399,28 +1435,32 @@ void Navigation::adjustToTraceNumber()
     case South:
 
       //Move North
-      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY-1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallNorth.getWallExists())
       {
         nextMove = DeadEnd;
         return;
       }
 
       //Move East
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX+1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallEast.getWallExists())
       {
         nextMove = TurnLeft;
         return;
       }
 
       //Move West
-      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY][robotPosX-1].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallWest.getWallExists())
       {
         nextMove = TurnRight;
         return;
       }
 
       //Move South
-      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber())
+      if (currentTraceNumber-1 == tiles[robotPosY+1][robotPosX].getTraceNumber() &&
+          !tiles[robotPosY][robotPosX].wallSouth.getWallExists())
       {
         nextMove = MoveForward;
         return;
@@ -1700,7 +1740,7 @@ void setup() {
   Serial.begin(9600);
   Serial2.begin(9600);
 
-  delay(500);
+  delay(1000);
 }
 
 void loop()
@@ -1719,6 +1759,9 @@ void loop()
     
   if (!Navigation::getNodeMode())
   {
+    //NORMAL MAPPING NAVIGATION
+
+    //CHECK IF DONE
     if (Navigation::getMazeComplete())
     {
       delay(10000);
@@ -1731,21 +1774,38 @@ void loop()
     Serial2.write(0xff); 
     Serial2.write(0xff);
     Serial2.write(0xff);
+
+    //USE ULTRASONIC TO GET WALLS
     Navigation::scanSides();
     
+    //IF NO POSSIBLE MOVE, GO NODE MODE
     if (Navigation::getNodeMode())
     {
       return;
     }
     
     delay(100);
+
+    //ROTATE ROBOT TO MOVE
     Navigation::adjustToNextMove();
+
     delay(100);  
+
+    //MOVE FORWARD TO NEXT TILE
     Navigation::moveToNextTile();
     delay(100);
   }
   else
   {
+    //NODE MODE
+
+    //CHECK IF FIRST TIME IN NODE
+    if (Navigation::getActivateNode())
+    {
+      Navigation::findClosestNode();
+      Navigation::tracePath();
+    }
+
     Serial2.print("t1.txt=");
     Serial2.print("\""); 
     Serial2.print("NODE MODE"); 
@@ -1766,14 +1826,23 @@ void loop()
     Serial2.write(0xff);
     Serial2.write(0xff);
 
-    Navigation::adjustToTraceNumber();
+    //DECIDE NEXT MOVE BASED ON NUMBERS
+    Navigation::decideToTraceNumber();
+
+    //ROTATE TO NEXT MOVE
     Navigation::adjustToNextMove();
+
     delay(100);
+
+    //MOVE FORWARD TO NEXT TILE
     Navigation::moveToNextTile();
+
+    //CHECK IF DONE WITH NODES
     Navigation::checkNodeMode();
 
   }
 
+  //ERASE ALREADY EXHAUSTED NODES
   Navigation::eraseNodes();
 
   Serial2.print("t0.txt=");
