@@ -3,7 +3,7 @@
 #include <EnableInterrupt.h>
 #include <NewPing.h>
 #include <math.h>
-
+#include <Wire.h>
 
 
 /*--------------------------------------
@@ -21,6 +21,11 @@ int mazeSizeY = 4;
 int robotStartPosX = 0;
 int robotStartPosY = 3;
 
+int luxBlack = 100;
+int luxWhite = 700;
+int luxCheckpoint = 700;
+
+
 /*--------------------------------------
 *
 *
@@ -37,7 +42,7 @@ int robotStartPosY = 3;
 class ColorSensor
 {
 public:
-  ColorSensor(byte, byte, byte);
+  ColorSensor();
 
   byte calculateColor();
 
@@ -46,59 +51,35 @@ private:
   byte redPin, greenPin, bluePin;
 };
 
-ColorSensor::ColorSensor(byte red, byte green, byte blue)
+ColorSensor::ColorSensor()
 {
-  tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+  tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
+  tcs.begin();
 
-  redPin = red;
-  bluePin = blue;
-  greenPin = green;
-
-  pinMode(redPin, OUTPUT);
-  pinMode(greenPin, OUTPUT);
-  pinMode(bluePin, OUTPUT);
-
-  byte gammatable[256];
-
-  for (int i=0; i<256; i++) 
-  {
-    float x = i;
-    x /= 255;
-    x = pow(x, 2.5);
-    x *= 255;
-    
-   gammatable[i] = 255 - x;
-
-  }
+  
 }
 
 byte ColorSensor::calculateColor()
 {
-  uint16_t clear, red, green, blue;
-
-  tcs.setInterrupt(false);
-
-  delay(60);
+ uint16_t r, g, b, c, colorTemp, lux;
   
-  tcs.getRawData(&red, &green, &blue, &clear);
+  tcs.getRawData(&r, &g, &b, &c);
+  colorTemp = tcs.calculateColorTemperature(r, g, b);
+  lux = tcs.calculateLux(r, g, b);
 
-  tcs.setInterrupt(true);
-  
-  uint16_t value = sqrt(red*red+green*green+blue*blue);
-
-  if (value > 900)
+  if (lux < luxBlack)
   {
-    return 3;
+    return 2;
   }
   else
   {
-    if (value > 600)
+    if (lux < luxWhite)
     {
       return 1;
     }
     else
     {
-      return 2;
+      return 3;
     }
   }
 }
@@ -469,6 +450,8 @@ private:
   Thermometer tempSensorRight;
   Thermometer tempSensorLeft;
 
+  ColorSensor colorSensor;
+
   int turn90amount;
   int back5amount;
   int forward30amount;
@@ -479,7 +462,7 @@ private:
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
 ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(A13), LimitSwitchB(27), LimitSwitchC(29), 
-LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B)
+LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B), colorSensor()
 {
   turn90amount = 850;
   forward30amount = 1480;
@@ -699,13 +682,13 @@ int Control::forwardTile(byte intensity)
       frontDistance -= 30;
       break;
     }
-/*
+
     if (colorSensor.calculateColor() == 2)
     {
       backFromBlack(intensity);
       return 2;
     }
-*/
+
     ultraSensorRight.getDistance();
     ultraSensorLeft.getDistance();
     ultraSensorFront.getDistance();
@@ -716,8 +699,7 @@ int Control::forwardTile(byte intensity)
 
   stopMotors();
 
-  //return colorSensor.calculateColor();
-  return 1;
+  return colorSensor.calculateColor();
 }
 
 /*--------------------------------------
