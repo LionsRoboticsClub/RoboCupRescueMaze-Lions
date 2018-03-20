@@ -1,6 +1,9 @@
+#include <i2cmaster.h>
+#include <Adafruit_TCS34725.h>
 #include <EnableInterrupt.h>
 #include <NewPing.h>
-//#include <Adafruit_MLX90614.h>
+#include <math.h>
+
 
 
 /*--------------------------------------
@@ -17,6 +20,7 @@ int mazeSizeY = 4;
 
 int robotStartPosX = 0;
 int robotStartPosY = 3;
+
 /*--------------------------------------
 *
 *
@@ -27,13 +31,87 @@ int robotStartPosY = 3;
 */
 
 /*--------------------------------------
+  Class ColorSensor
+*/
+
+class ColorSensor
+{
+public:
+  ColorSensor(byte, byte, byte);
+
+  byte calculateColor();
+
+private:
+  Adafruit_TCS34725 tcs;
+  byte redPin, greenPin, bluePin;
+};
+
+ColorSensor::ColorSensor(byte red, byte green, byte blue)
+{
+  tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);
+
+  redPin = red;
+  bluePin = blue;
+  greenPin = green;
+
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+
+  byte gammatable[256];
+
+  for (int i=0; i<256; i++) 
+  {
+    float x = i;
+    x /= 255;
+    x = pow(x, 2.5);
+    x *= 255;
+    
+   gammatable[i] = 255 - x;
+
+  }
+}
+
+byte ColorSensor::calculateColor()
+{
+  uint16_t clear, red, green, blue;
+
+  tcs.setInterrupt(false);
+
+  delay(60);
+  
+  tcs.getRawData(&red, &green, &blue, &clear);
+
+  tcs.setInterrupt(true);
+  
+  uint16_t value = sqrt(red*red+green*green+blue*blue);
+
+  if (value > 900)
+  {
+    return 3;
+  }
+  else
+  {
+    if (value > 600)
+    {
+      return 1;
+    }
+    else
+    {
+      return 2;
+    }
+  }
+}
+//-------------------------------------------------
+
+/*--------------------------------------
   Class LimitSwitch
 */
 class LimitSwitch
 {
   public:
     LimitSwitch(byte);
-    bool isPushed();
+    int isPushed();
   private:
     int pin;
 };
@@ -44,33 +122,85 @@ LimitSwitch::LimitSwitch(byte addPin)
   pinMode(pin, INPUT);
 }
 
-bool LimitSwitch::isPushed()
+int LimitSwitch::isPushed()
 {
-  return digitalRead(pin);
+  int value = analogRead(pin);
+
+  return value;
 }
-//--------------------------------------
+//-------------------------------------------------
 
 /*--------------------------------------
   Class Thermometer
 */
-/*
 class Thermometer
 {
-  public:
-    Thermometer();
-    float getTemperature();
-  private:
-    float temperature;
-    Adafruit_MLX90614 mlx;
+public: 
+  Thermometer(int ad);
+  float getTemperature();
+
+private: 
+  float temperature;
+  int address;
 };
-Thermometer::Thermometer()
+
+Thermometer::Thermometer(int ad)
 {
-  mlx.begin();
+  address = ad;
 }
+
 float Thermometer::getTemperature()
 {
-  return mlx.readObjectTempC();
-}*/
+  int melexisAddress = address<<1;
+  int dev = melexisAddress; 
+  int data_low = 0; 
+  int data_high = 0; 
+  int pec = 0;
+
+  //write
+  i2c_start_wait(dev + I2C_WRITE);
+  i2c_write(0x07);
+
+  //read
+  i2c_rep_start(dev+I2C_READ);
+  data_low = i2c_readAck();
+  data_high = i2c_readAck();
+  pec = i2c_readNak();
+  i2c_stop();
+  double tempFactor = 0.02;
+  double tempData = 0x0000;
+  int frac;
+  tempData = (double)(((data_high & 0x007F) << 8) + data_low);
+  tempData = (tempData * tempFactor)-0.01;
+  float temperature = tempData - 273.15;
+  return temperature;
+}
+
+float temperatureCelcius(int address) 
+{
+  int dev = address;
+  int data_low = 0;
+  int data_high = 0;
+  int pec = 0;
+
+  // Write
+  i2c_start_wait(dev+I2C_WRITE);
+  i2c_write(0x07);
+
+  // Read
+  i2c_rep_start(dev+I2C_READ);
+  data_low = i2c_readAck();
+  data_high = i2c_readAck();
+  pec = i2c_readNak();
+  i2c_stop();
+  double tempFactor = 0.02;
+  double tempData = 0x0000;
+  int frac;
+  tempData = (double)(((data_high & 0x007F) << 8) + data_low);
+  tempData = (tempData * tempFactor)-0.01;
+  float celcius = tempData - 273.15;
+  return celcius;
+}
 //---------------------------------------
 
 /*---------------------------------------
@@ -291,6 +421,9 @@ public:
   LimitSwitch getLimitSwitchC(){return LimitSwitchC;}
   LimitSwitch getLimitSwitchD(){return LimitSwitchD;}
 
+  Thermometer getTempSensorRight(){return tempSensorRight;}
+  Thermometer getTempSensorLeft(){return tempSensorLeft;}
+
 
   void forwardMotors(byte);
   void backwardMotors(byte);
@@ -306,7 +439,9 @@ public:
 
   void forwardTile(byte);
   void alignForward(byte);
+  void alignBackward(byte);
   void backFiveCm(byte);
+  void forwardFiveCm(byte);
 
   Motor motor1;
   Motor motor2;
@@ -324,6 +459,9 @@ private:
   Ultrasonic ultraSensorLeft;
   Ultrasonic ultraSensorFront;
 
+  Thermometer tempSensorRight;
+  Thermometer tempSensorLeft;
+
   int turn90amount;
   int back5amount;
   int forward30amount;
@@ -332,8 +470,8 @@ private:
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(26), LimitSwitchB(27), LimitSwitchC(29)
-, LimitSwitchD(28)
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(A13), LimitSwitchB(27), LimitSwitchC(29)
+, LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B) 
 {
   turn90amount = 850;
   forward30amount = 1480;
@@ -410,7 +548,8 @@ void Control::turnRight(byte intensity)
 }
 
 
-void Control::backFiveCm(byte intensity){
+void Control::backFiveCm(byte intensity)
+{
   motor1.resetEncoderTotalTurnPos();
   motor2.resetEncoderTotalTurnPos();
   motor3.resetEncoderTotalTurnPos();
@@ -429,7 +568,36 @@ void Control::backFiveCm(byte intensity){
     
     delay(5);
 
+
   }
+
+  stopMotors();
+}
+
+void Control::forwardFiveCm(byte intensity)
+{
+  motor1.resetEncoderTotalTurnPos();
+  motor2.resetEncoderTotalTurnPos();
+  motor3.resetEncoderTotalTurnPos();
+  motor4.resetEncoderTotalTurnPos();
+
+  forwardMotors(intensity);
+  
+  //Add sensor scanning in this area for more precision or obstacles
+  while (true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > back5amount && motor2.getEncoderTotalTurnPos() > back5amount &&
+        motor3.getEncoderTotalTurnPos() > back5amount && motor4.getEncoderTotalTurnPos() > back5amount)
+    {
+      break;
+    }
+    
+    delay(5);
+
+
+  }
+
+  stopMotors();
 }
 
 void Control::turnLeft(byte intensity)
@@ -466,11 +634,21 @@ void Control::alignForward(byte intensity)
 
   while(true)
   {
-    if(LimitSwitchA.isPushed()&&LimitSwitchD.isPushed())
+    if(LimitSwitchA.isPushed()==LimitSwitchD.isPushed() && LimitSwitchA.isPushed() > 1000 && LimitSwitchB.isPushed() > 1000 && ultraSensorFront.getDistance()<2)
     {
-      
       break;
     }
+  }
+}
+
+void Control::alignBackward(byte intensity)
+{
+  backwardMotors(intensity);
+
+  while(true)
+  {
+    delay(1000);
+    break;
   }
 }
 
@@ -569,6 +747,7 @@ public:
   void setFloorType(byte type) {floorType = type;}
   void setSearchNumber(byte number) {searchNumber = number;}
   void setTraceNumber(byte number) {traceNumber = number;}
+  void setTemperature(float temp) {temperature = temp;}
 
   bool getIsVisited() {return isVisited;}
   bool getIsNode() {return isNode;}
@@ -576,7 +755,7 @@ public:
   byte getFloorType() {return floorType;}
   byte getSearchNumber() {return searchNumber;}
   byte getTraceNumber() {return traceNumber;}
-
+  float getTemperature() {return temperature;}
 
   Wall wallNorth;
   Wall wallEast;
@@ -591,6 +770,8 @@ private:
   byte floorType;
   byte searchNumber;
   byte traceNumber;
+
+ float temperature;
 
 };
 
@@ -617,6 +798,8 @@ public:
   static void start(byte matSize);
 
   static void scanSides();
+  static void scanForVictims();
+  
   static void decideToTraceNumber();
 
   static void moveToNextTile();
@@ -627,6 +810,7 @@ public:
   static byte getRobotPosY() {return robotPosY;}
   static byte getNodePosX() {return nodePosX;}
   static byte getNodePosY() {return nodePosY;}
+  static byte getNodeAmount() {return nodeAmount;}
   static bool getNodeMode() {return nodeMode;}
   static bool getMazeComplete() {return mazeComplete;}
   static bool getActivateNode() {return activateNode;}
@@ -663,6 +847,8 @@ private:
   static byte nodePosX;
   static byte nodePosY;
 
+  static byte nodeAmount;
+
 public:
   static possibleMoves decideNextMove(bool, bool, bool);
 
@@ -676,6 +862,7 @@ byte Navigation::intensity = 255;
 byte Navigation::currentSearchNumber = 1;
 byte Navigation::nodePosX = 0;
 byte Navigation::nodePosY = 0;
+byte Navigation::nodeAmount = 0;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
@@ -754,7 +941,8 @@ void Navigation::eraseNodes()
 
         if (northBlocked && westBlocked && eastBlocked && southBlocked)
         {
-          tiles[i][j].setIsNode(false);  
+          tiles[i][j].setIsNode(false);
+          --nodeAmount;  
         }
       }
     }
@@ -972,18 +1160,6 @@ void Navigation::tracePath()
   do 
   {
 
-    Serial2.print("n0.val=");
-    Serial2.print(tiles[tracePosY][tracePosX-1].getSearchNumber());  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n1.val=");
-    Serial2.print(nextNumber);  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
      //Check North
     if (!tiles[tracePosY][tracePosX].wallNorth.getWallExists())
     {
@@ -1086,6 +1262,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
     {
       //There are several possible moves
       tiles[robotPosY][robotPosX].setIsNode(true);
+      ++nodeAmount;
       Serial2.print("t0.txt=");
       Serial2.print("\""); 
       Serial2.print("NODE CRE"); 
@@ -1101,6 +1278,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       {
         //There are several possible moves
         tiles[robotPosY][robotPosX].setIsNode(true);
+        ++nodeAmount;
         Serial2.print("t0.txt=");
         Serial2.print("\""); 
         Serial2.print("NODE CRE"); 
@@ -1122,6 +1300,7 @@ Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool r
       {
         //There are several possible moves
         tiles[robotPosY][robotPosX].setIsNode(true);
+        ++nodeAmount;
         Serial2.print("t0.txt=");
         Serial2.print("\""); 
         Serial2.print("NODE CRE"); 
@@ -1319,6 +1498,24 @@ void Navigation::scanSides()
   }
 }
 
+void Navigation::scanForVictims()
+{
+  float tempRight = control.getTempSensorRight().getTemperature();
+  float tempLeft = control.getTempSensorLeft().getTemperature();
+
+  Serial2.print("n2.val=");
+    Serial2.print((int)tempRight);  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    Serial2.print("n3.val=");
+    Serial2.print((int)tempLeft);  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+}
+
 void Navigation::decideToTraceNumber()
 {
   //CheckFront
@@ -1472,6 +1669,10 @@ void Navigation::decideToTraceNumber()
 
 void Navigation::adjustToNextMove()
 {
+  bool adjustToLeft = control.getUltraSensorLeft().getDistance() < 20;
+  bool adjustToRight = control.getUltraSensorRight().getDistance() < 20;
+  bool adjustToFront = control.getUltraSensorFront().getDistance() < 20;
+  
   switch(nextMove)
   {
     case MoveForward:
@@ -1479,10 +1680,21 @@ void Navigation::adjustToNextMove()
       break;
 
     case TurnRight:
-      //control.alignForward(intensity);
-      //control.backFiveCm(intensity);
+      
+      if(adjustToFront)
+      {
+        control.alignForward(intensity);
+        control.backFiveCm(intensity);
+      }
+
       delay(300);
       control.turnRight(intensity);
+
+      if(adjustToLeft)
+      {
+        control.alignBackward(intensity);
+        control.forwardFiveCm(intensity);
+      }
 
       switch(orientation)
       {
@@ -1536,10 +1748,21 @@ void Navigation::adjustToNextMove()
       break;
 
     case TurnLeft:
-      //control.alignForward(intensity);
-      //control.backFiveCm(intensity);
+      
+      if(adjustToFront)
+      {
+        control.alignForward(intensity);
+        control.backFiveCm(intensity);
+      }
+      
       delay(300);
       control.turnLeft(intensity);
+
+      if(adjustToRight)
+      {
+        control.alignBackward(intensity);
+        control.forwardFiveCm(intensity);
+      }
 
       switch(orientation)
       {
@@ -1583,11 +1806,37 @@ void Navigation::adjustToNextMove()
       break;
 
     case DeadEnd:
-      //control.alignForward(intensity);
-      //control.backFiveCm(intensity);
+    
+      if(adjustToFront)
+      {
+        control.alignForward(intensity);
+        control.backFiveCm(intensity);
+      }
+      
       delay(300);
       control.turnRight(intensity);
+
+      if(adjustToRight)
+      {
+        control.alignForward(intensity);
+        control.backFiveCm(intensity);
+      }
+      else
+      {
+        if(adjustToLeft)
+        {
+          control.alignBackward(intensity);
+          control.forwardFiveCm(intensity);
+        }
+      }
+
+      delay(300);
       control.turnRight(intensity);
+      
+      delay(300);
+
+      control.alignBackward(intensity);
+      control.forwardFiveCm(intensity);
 
       switch(orientation)
       {
@@ -1737,6 +1986,8 @@ void setup() {
 
   Navigation::start(5);
 
+  i2c_init();
+
   Serial.begin(9600);
   Serial2.begin(9600);
 
@@ -1745,6 +1996,10 @@ void setup() {
 
 void loop()
 {
+       Navigation::scanForVictims();
+       delay(200);
+  /*
+
     Serial2.print("n0.val=");
     Serial2.print(Navigation::getRobotPosX());  
     Serial2.write(0xff); 
@@ -1777,6 +2032,8 @@ void loop()
 
     //USE ULTRASONIC TO GET WALLS
     Navigation::scanSides();
+
+    Navigation::scanForVictims();
     
     //IF NO POSSIBLE MOVE, GO NODE MODE
     if (Navigation::getNodeMode())
@@ -1853,5 +2110,16 @@ void loop()
   Serial2.write(0xff);
   Serial2.write(0xff);
 
+  Serial2.print("n0.val=");
+  Serial2.print(Navigation::getNodeAmount());  
+  Serial2.write(0xff); 
+  Serial2.write(0xff);
+  Serial2.write(0xff);
 
+  Serial2.print("n1.val=");
+  Serial2.print((int)Navigation::control.getUltraSensorLeft().getDistance());  
+  Serial2.write(0xff); 
+  Serial2.write(0xff);
+  Serial2.write(0xff);
+  */
 }
