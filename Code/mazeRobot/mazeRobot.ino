@@ -331,6 +331,7 @@ class Motor
     int encoderA;
     int encoderB;
     float speed;
+
     volatile unsigned long encoderPos;
     volatile int currentState = LOW;
     volatile int lastStateA  = LOW;
@@ -424,6 +425,10 @@ public:
   Thermometer getTempSensorRight(){return tempSensorRight;}
   Thermometer getTempSensorLeft(){return tempSensorLeft;}
 
+  //ColorSensor getColorSensor() {return colorSensor;}
+
+  float getFrontDistace() {return frontDistance;}
+  void setFrontDistance(float distance) {frontDistance = distance;}
 
   void forwardMotors(byte);
   void backwardMotors(byte);
@@ -436,12 +441,14 @@ public:
   //90 degree rotation
   void turnRight(byte);
   void turnLeft(byte);
-
-  void forwardTile(byte);
+  
+  int forwardTile(byte);
   void alignForward(byte);
   void alignBackward(byte);
   void backFiveCm(byte);
   void forwardFiveCm(byte);
+
+  void backFromBlack(byte);
 
   Motor motor1;
   Motor motor2;
@@ -465,17 +472,19 @@ private:
   int turn90amount;
   int back5amount;
   int forward30amount;
+  float frontDistance;
 
 };
 
 Control::Control() :
 motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
-ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(A13), LimitSwitchB(27), LimitSwitchC(29)
-, LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B) 
+ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(A13), LimitSwitchB(27), LimitSwitchC(29), 
+LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B)
 {
   turn90amount = 850;
   forward30amount = 1480;
   back5amount = (forward30amount/6);
+  frontDistance = 0;
 }
 
 void Control::forwardMotors(byte intensity)
@@ -652,7 +661,26 @@ void Control::alignBackward(byte intensity)
   }
 }
 
-void Control::forwardTile(byte intensity)
+void Control::backFromBlack(byte intensity)
+{
+  unsigned long targetPosM1 = motor1.getEncoderTotalTurnPos()*2;
+  unsigned long targetPosM2 = motor2.getEncoderTotalTurnPos()*2;
+  unsigned long targetPosM3 = motor3.getEncoderTotalTurnPos()*2;
+  unsigned long targetPosM4 = motor4.getEncoderTotalTurnPos()*2;
+
+  backwardMotors(intensity);
+
+  while(true)
+  {
+    if (motor1.getEncoderTotalTurnPos() > targetPosM1 && motor2.getEncoderTotalTurnPos() > targetPosM2 &&
+        motor3.getEncoderTotalTurnPos() > targetPosM3 && motor4.getEncoderTotalTurnPos() > targetPosM4)
+    {
+      break;
+    }
+  }
+}
+
+int Control::forwardTile(byte intensity)
 {
   motor1.resetEncoderTotalTurnPos();
   motor2.resetEncoderTotalTurnPos();
@@ -665,11 +693,19 @@ void Control::forwardTile(byte intensity)
   while (true)
   {
     if (motor1.getEncoderTotalTurnPos() > forward30amount && motor2.getEncoderTotalTurnPos() > forward30amount &&
-        motor3.getEncoderTotalTurnPos() > forward30amount && motor4.getEncoderTotalTurnPos() > forward30amount)
+        motor3.getEncoderTotalTurnPos() > forward30amount && motor4.getEncoderTotalTurnPos() > forward30amount &&
+        (int)ultraSensorFront.getDistance() == frontDistance - 30)
     {
+      frontDistance -= 30;
       break;
     }
-
+/*
+    if (colorSensor.calculateColor() == 2)
+    {
+      backFromBlack(intensity);
+      return 2;
+    }
+*/
     ultraSensorRight.getDistance();
     ultraSensorLeft.getDistance();
     ultraSensorFront.getDistance();
@@ -678,9 +714,10 @@ void Control::forwardTile(byte intensity)
 
   }
 
-  
-
   stopMotors();
+
+  //return colorSensor.calculateColor();
+  return 1;
 }
 
 /*--------------------------------------
@@ -824,7 +861,6 @@ public:
 
   static Control control;
 
-  
 private:
   enum robotOrientation {North, South, East, West};
   enum possibleMoves {MoveForward, TurnRight, TurnLeft, DeadEnd};
@@ -847,6 +883,9 @@ private:
   static byte nodePosX;
   static byte nodePosY;
 
+  static byte lastCheckPointPosX;
+  static byte lastCheckPointPosY;
+
   static byte nodeAmount;
 
 public:
@@ -863,6 +902,9 @@ byte Navigation::currentSearchNumber = 1;
 byte Navigation::nodePosX = 0;
 byte Navigation::nodePosY = 0;
 byte Navigation::nodeAmount = 0;
+
+byte Navigation::lastCheckPointPosX = 0;
+byte Navigation::lastCheckPointPosY = 0;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
@@ -1696,6 +1738,9 @@ void Navigation::adjustToNextMove()
         control.forwardFiveCm(intensity);
       }
 
+      delay(50);
+      control.setFrontDistance(control.getUltraSensorFront().getDistance());
+
       switch(orientation)
       {
         case North:
@@ -1763,6 +1808,8 @@ void Navigation::adjustToNextMove()
         control.alignBackward(intensity);
         control.forwardFiveCm(intensity);
       }
+      delay(50);      
+      control.setFrontDistance(control.getUltraSensorFront().getDistance());
 
       switch(orientation)
       {
@@ -1838,6 +1885,9 @@ void Navigation::adjustToNextMove()
       control.alignBackward(intensity);
       control.forwardFiveCm(intensity);
 
+      delay(50);      
+      control.setFrontDistance(control.getUltraSensorFront().getDistance());
+
       switch(orientation)
       {
         case North:
@@ -1891,27 +1941,105 @@ void Navigation::adjustToNextMove()
 
 void Navigation::moveToNextTile()
 {
-  control.forwardTile(intensity);
+  int colorValue = control.forwardTile(intensity);
 
   switch(orientation)
   {
     case North:
-      robotPosY--;
+
+      if (colorValue == 2)
+      {
+        tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
+
+        if (robotPosY > 0 && robotPosX > 0)
+          tiles[robotPosY-1][robotPosX-1].wallEast.setWallExists(true);
+
+        if (robotPosY > 0 && robotPosX < mazeSizeX-1)
+           tiles[robotPosY-1][robotPosX+1].wallWest.setWallExists(true);
+
+        if (robotPosY > 1)
+          tiles[robotPosY-2][robotPosX].wallSouth.setWallExists(true);
+      }
+      else
+      {
+        robotPosY--;
+      }
+      
       break;
 
     case West:
-      robotPosX--;
+
+      if (colorValue == 2)
+      {
+        tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
+
+        if (robotPosY > 0 && robotPosX > 0)
+          tiles[robotPosY-1][robotPosX-1].wallSouth.setWallExists(true);
+
+        if (robotPosY < mazeSizeY-1 && robotPosX > 0)
+          tiles[robotPosY+1][robotPosX-1].wallNorth.setWallExists(true);
+
+        if (robotPosX > 1)
+          tiles[robotPosY][robotPosX-2].wallEast.setWallExists(true);
+      }
+      else
+      {
+        robotPosX--;
+      }
+
       break;
 
     case East:
-      robotPosX++;
+
+      if (colorValue == 2)
+      {
+        tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
+
+        if (robotPosY > 0 && robotPosX < mazeSizeX-1)
+          tiles[robotPosY-1][robotPosX+1].wallSouth.setWallExists(true);
+
+        if (robotPosY < mazeSizeY-1 && robotPosX < mazeSizeX-1)
+          tiles[robotPosY+1][robotPosX+1].wallNorth.setWallExists(true);
+
+        if (robotPosX < mazeSizeX-2)
+          tiles[robotPosY][robotPosX+2].wallEast.setWallExists(true);
+      }
+      else
+      {
+        robotPosX++;
+      }
+
       break;
 
     case South:
-      robotPosY++;
+
+      if (colorValue == 2)
+      {
+        tiles[robotPosY][robotPosX].wallSouth.setWallExists(true);
+
+        if (robotPosY < mazeSizeY-1 && robotPosX > 0)
+          tiles[robotPosY+1][robotPosX-1].wallEast.setWallExists(true);
+
+        if (robotPosY < mazeSizeY-1 && robotPosX < mazeSizeX-1)
+           tiles[robotPosY+1][robotPosX+1].wallWest.setWallExists(true);
+
+        if (robotPosY < mazeSizeY-2)
+          tiles[robotPosY+2][robotPosX].wallSouth.setWallExists(true);
+      }
+      else
+      {
+        robotPosY++;
+      }
+
       break;
   }
 
+  if (colorValue == 3)
+  {
+     lastCheckPointPosX = robotPosX;
+     lastCheckPointPosY = robotPosY;
+  }
+  
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
 }
@@ -1992,25 +2120,12 @@ void setup() {
   Serial2.begin(9600);
 
   delay(1000);
+
+  Navigation::control.setFrontDistance(Navigation::control.getUltraSensorFront().getDistance());
 }
 
 void loop()
 {
-       Navigation::scanForVictims();
-       delay(200);
-  /*
-
-    Serial2.print("n0.val=");
-    Serial2.print(Navigation::getRobotPosX());  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n1.val=");
-    Serial2.print(Navigation::getRobotPosY());  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
     
   if (!Navigation::getNodeMode())
   {
@@ -2121,5 +2236,5 @@ void loop()
   Serial2.write(0xff); 
   Serial2.write(0xff);
   Serial2.write(0xff);
-  */
+
 }
