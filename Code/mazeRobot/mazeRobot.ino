@@ -434,6 +434,8 @@ public:
 
   void backFromBlack(byte);
 
+  void goUpRamp(byte, bool);
+
   Motor motor1;
   Motor motor2;
   Motor motor3;
@@ -542,6 +544,49 @@ void Control::turnRight(byte intensity)
   stopMotors();
 }
 
+void Control::goUpRamp(byte intensity, bool isUp)
+{
+  if (isUp)
+  {
+    forwardMotors(intensity);
+
+    while (true)
+    {
+      if (gyroSensor.getInclination() > 5)
+      {
+        break;
+      }
+    }
+
+    while (true)
+    {
+      if (gyroSensor.getInclination() < 5)
+      {
+        break;
+      }
+    }
+  }
+  else
+  {
+    while (true)
+    {
+      if (gyroSensor.getInclination() < -5)
+      {
+        break;
+      }
+    }
+
+    while (true)
+    {
+      if (gyroSensor.getInclination() > -5)
+      {
+        break;
+      }
+    }
+  }
+
+  stopMotors();
+}
 
 void Control::backFiveCm(byte intensity)
 {
@@ -847,16 +892,19 @@ public:
   static bool getNodeMode() {return nodeMode;}
   static bool getMazeComplete() {return mazeComplete;}
   static bool getActivateNode() {return activateNode;}
+  static bool getDone() {return done;}
+  static bool getInMainMaze() {return inMainMaze;}
+  static bool getToSecondMaze() {return toSecondMaze;}
+  static bool getBackToMain() {return backToMain;}
 
   static void findClosestNode();
   static void tracePath();
 
+  static void backToHome();
+  static void changeMaze();
+
   static void checkNodeMode();
-
   static void eraseNodes();
-
-  static void rampMode();
-
   static Control control;
 
 private:
@@ -882,6 +930,9 @@ private:
   static bool activateNode;
   static bool inMainMaze;
   static bool maze2Complete;
+  static bool backToMain;
+  static bool toSecondMaze;
+  static bool done;
 
   static byte currentSearchNumber;
   static byte nodePosX;
@@ -935,6 +986,9 @@ bool Navigation::mazeComplete = false;
 bool Navigation::activateNode = true;
 bool Navigation::inMainMaze = true;
 bool Navigation::maze2Complete = false;
+bool Navigation::backToMain = false;
+bool Navigation::toSecondMaze = false;
+bool Navigation::done = false;
 
 void Navigation::start(byte matSize)
 {
@@ -971,6 +1025,12 @@ void Navigation::start(byte matSize)
   tiles[robotPosY][robotPosX].setIsVisited(true);
 }
 
+void Navigation::backToHome()
+{
+  nodeMode = true;
+  tiles[robotStartPosY][robotStartPosX].setIsNode(true);
+}
+
 void Navigation::checkNodeMode()
 {
   if (nodePosY == robotPosY)
@@ -978,6 +1038,21 @@ void Navigation::checkNodeMode()
     if (nodePosX == robotPosX)
     {
       nodeMode = false;
+      if (toSecondMaze)
+      {
+        changeMaze();
+        inMainMaze = false;
+        toSecondMaze = false;
+      }
+      else
+      {
+        if (backToMain)
+        {
+          changeMaze();
+          inMainMaze = true;
+          backToMain = false;
+        }
+      }
     }
   }
 }
@@ -1016,26 +1091,60 @@ void Navigation::findClosestNode()
   bool nodeFound = false;
   bool finished = false;
   bool activateNode = false;
+
+  mazeComplete = false;
+  maze2Complete = false;
   
-  mazeComplete = true;
+  if (inMainMaze)
+  { 
+    mazeComplete = true;
 
-  for (byte i = 0; i < mazeSizeY; ++i)
-  {
-    for (byte j = 0; j < mazeSizeX; ++j)
+    for (byte i = 0; i < mazeSizeY; ++i)
     {
-      tiles[i][j].setSearchNumber(103);
-
-      if (tiles[i][j].getIsNode())
+      for (byte j = 0; j < mazeSizeX; ++j)
       {
-        mazeComplete = false;
+        tiles[i][j].setSearchNumber(103);
+
+        if (tiles[i][j].getIsNode())
+        {
+          mazeComplete = false;
+        }
       }
     }
-  }
 
-  if (mazeComplete)
-  {
-    tiles[robotStartPosY][robotStartPosX].setIsNode(true);
+    if (mazeComplete)
+    {
+      toSecondMaze = true;
+      backToMain = false;
+      tiles[rampPosX][rampPosY].setIsNode(true);
+
+    }
   }
+  else
+  {
+    maze2Complete = true;
+
+    for (byte i = 0; i < mazeSizeY; ++i)
+    {
+      for (byte j = 0; j < mazeSizeX; ++j)
+      {
+        tiles[i][j].setSearchNumber(103);
+
+        if (tiles[i][j].getIsNode())
+        {
+          maze2Complete = false;
+        }
+      }
+    }
+
+    if (maze2Complete)
+    {
+      backToMain = true;
+      toSecondMaze = false;
+      tiles[maze2StartPosY][maze2StartPosX].setIsNode(true);
+    }
+  }
+  
 
   tiles[robotPosY][robotPosX].setSearchNumber(1);
 
@@ -1307,8 +1416,6 @@ void Navigation::tracePath()
   Serial.println("What the helllll");
   
 }
-
-
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
 {
@@ -1957,62 +2064,208 @@ void Navigation::adjustToNextMove()
   }
 }
 
-/*
-void rampMode()
+void Navigation::changeMaze()
 {
-  if (upRamp)
+
+  //Change to second maze
+  if (inMainMaze)
   {
-    switch (rampMove)
+    //Copy main maze to tiles2
+    for (int i = 0; i < mazeSizeY; ++i)
     {
-      case MoveForward:
-        break;
-
-      case TurnRight:
-        control.turnLeft(intensity);
-        break;
-
-      case TurnLeft:
-        control.turnRight(intensity);
-        break;
-    }        
-  }
-
-  forwardMotors(intensity);
-
-  while (true)
-  {
-    if(getGyroScope().getInclination() < 5)
-    {
-      stopMotors();
-      break;
-    }
-  }
-
-  bool frontAvailable = true;
-  bool rightAvailable = true;
-  bool leftAvailable = true;
-
-  if (!upRamp)
-  {
-    if (control.getUltraSensorFront().getDistance() < 20)
-    {
-      frontAvailable = false;
+      for (int j = 0; j < mazeSizeX; ++j)
+      {
+        tiles2[i][j] = tiles[i][j];
+      }
     }
 
-    if (control.getUltraSensorRight().getDistance() < 20)
+    Tile tile;
+    //Erase tiles for new usage
+    for (int i = 0; i < mazeSizeY; ++i)
     {
-      frontAvailable = false
-    } 
+      for (int j = 0; j < mazeSizeX; ++j)
+      {
+        tiles[i][j] = tile;
+      }
+    }
+
+    //Adjust to orientation of the ramp
+    switch (orientation)
+    {
+      case North:
+        switch (rampOrientation)
+        {
+          case North:
+            //No change
+            break;
+
+          case East:
+            nextMove = TurnRight;
+            break;
+
+          case West:
+            nextMove = TurnLeft;
+            break;
+
+          case South:
+            //Impossible
+            nextMove = DeadEnd;
+            break;
+        }
+
+        break;
+
+      case East:
+        switch (rampOrientation)
+        {
+          case North:
+            nextMove = TurnLeft;
+            break;
+
+          case East:
+            //No change
+            break;
+
+          case West:
+            //Impossible
+            nextMove = DeadEnd;
+            break;
+
+          case South:
+            nextMove = TurnRight;
+            break;
+        }
+        
+        break;
+
+      case West:
+        switch (rampOrientation)
+        {
+          case North:
+            nextMove = TurnRight;
+            break;
+
+          case East:
+            //Impossible
+            nextMove = DeadEnd;
+            break;
+
+          case West:
+            //No change
+            break;
+
+          case South:
+            nextMove = TurnLeft;
+            break;
+        }
+        
+        break;
+
+      case South:
+        switch (rampOrientation)
+        {
+          case North:
+            //Impossible
+          nextMove = DeadEnd;
+            break;
+
+          case East:
+            nextMove = TurnLeft;
+            break;
+
+          case West:
+            nextMove = TurnRight;
+            break;
+
+          case South:
+            //No change
+            break;
+        }
+        
+        break;
+    }
+
+    adjustToNextMove();
+
+    control.goUpRamp(intensity, true);
+
+    robotPosY = maze2StartPosY;
+    robotPosX = maze2StartPosX;
+
+    orientation = North;
+
+    tiles[robotPosY][robotPosX].setIsVisited(true);
+
+    inMainMaze = false;
   }
+  //Change to first maze
+  else
+  {
+    //Retrieve main maze from tiles2
+    for (int i = 0; i < mazeSizeY; ++i)
+    {
+      for (int j = 0; j < mazeSizeX; ++j)
+      {
+        tiles[i][j] = tiles2[i][j];
+      }
+    }
 
-  upRamp = !upRamp;
+    switch (orientation)
+    {
+      case North:
+        //Impossible
+        nextMove = DeadEnd;
+        break;
 
+      case East:
+        nextMove = TurnRight;
+        break;
+
+      case West:
+        nextMove = TurnLeft;
+        break;
+
+      case South:
+        //No change
+        break;
+    }
+
+    adjustToNextMove();
+
+    control.goUpRamp(intensity, false);
+
+    robotPosY = rampPosY;
+    robotPosX = rampPosX;
+
+    switch (rampOrientation)
+    {
+      case North:
+        orientation = South;
+        break;
+
+      case East:
+        orientation = West;
+        break;
+
+      case West:
+        orientation = East;
+        break;
+
+      case South:
+        orientation = North;
+        break;
+    }
+    inMainMaze = true;
+    backToHome();
+  }
 }
-*/
 
 void Navigation::moveToNextTile()
 { 
   //If value is 2, there is black tile
+  //If value is 3, there is a checkpoint
+  //If value is 4, there is a ramp
+  //If value is 1, it is a normal tile
   int tileValue = control.forwardTile(intensity);
 
   switch(orientation)
@@ -2036,8 +2289,8 @@ void Navigation::moveToNextTile()
       {
         if (tileValue == 4)
         {
-          pathToRampX = robotPosX;
-          pathToRampY = robotPosY;
+          rampPosX = robotPosX;
+          rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
           rampOrientation = North;
         }
@@ -2069,8 +2322,8 @@ void Navigation::moveToNextTile()
       {
         if (tileValue == 4)
         {
-          pathToRampX = robotPosX;
-          pathToRampY = robotPosY;
+          rampPosX = robotPosX;
+          rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
           rampOrientation = West;
         }
@@ -2101,8 +2354,8 @@ void Navigation::moveToNextTile()
       {
         if (tileValue == 4)
         {
-          pathToRampX = robotPosX;
-          pathToRampY = robotPosY;
+          rampPosX = robotPosX;
+          rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
           rampOrientation = East;
         }
@@ -2133,8 +2386,8 @@ void Navigation::moveToNextTile()
       {
         if (tileValue == 4)
         {
-          pathToRampX = robotPosX;
-          pathToRampY = robotPosY;
+          rampPosX = robotPosX;
+          rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
           rampOrientation = South;
         }
@@ -2246,21 +2499,13 @@ void loop()
     
   if (!Navigation::getNodeMode())
   {
-    //NORMAL MAPPING NAVIGATION
+    //MAPPING NAVIGATION
 
     //CHECK IF DONE
-    if (Navigation::getMazeComplete())
+    if (Navigation::getDone())
     {
       delay(10000);
     }
-    
-    Serial2.print("t1.txt=");
-    Serial2.print("\""); 
-    Serial2.print("NO NODE"); 
-    Serial2.print("\"");  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
 
     //USE ULTRASONIC TO GET WALLS
     Navigation::scanSides();
@@ -2280,6 +2525,10 @@ void loop()
 
     delay(100);  
 
+    Navigation::scanForVictims();
+
+    delay(50);
+
     //MOVE FORWARD TO NEXT TILE
     Navigation::moveToNextTile();
     delay(100);
@@ -2294,26 +2543,6 @@ void loop()
       Navigation::findClosestNode();
       Navigation::tracePath();
     }
-
-    Serial2.print("t1.txt=");
-    Serial2.print("\""); 
-    Serial2.print("NODE MODE"); 
-    Serial2.print("\"");  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n2.val=");
-    Serial2.print(Navigation::getNodePosX());  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n3.val=");
-    Serial2.print(Navigation::getNodePosY());  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
 
     //DECIDE NEXT MOVE BASED ON NUMBERS
     Navigation::decideToTraceNumber();
@@ -2333,25 +2562,5 @@ void loop()
 
   //ERASE ALREADY EXHAUSTED NODES
   Navigation::eraseNodes();
-
-  Serial2.print("t0.txt=");
-  Serial2.print("\""); 
-  Serial2.print("NOPE"); 
-  Serial2.print("\"");  
-  Serial2.write(0xff); 
-  Serial2.write(0xff);
-  Serial2.write(0xff);
-
-  Serial2.print("n0.val=");
-  Serial2.print(Navigation::getNodeAmount());  
-  Serial2.write(0xff); 
-  Serial2.write(0xff);
-  Serial2.write(0xff);
-
-  Serial2.print("n1.val=");
-  Serial2.print((int)Navigation::control.getUltraSensorLeft().getDistance());  
-  Serial2.write(0xff); 
-  Serial2.write(0xff);
-  Serial2.write(0xff);
 
 }
