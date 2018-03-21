@@ -18,6 +18,9 @@
 int mazeSizeX = 4;
 int mazeSizeY = 4;
 
+int mazeSizeX2 = 4;
+int mazeSizeY2 = 4;
+
 int robotStartPosX = 0;
 int robotStartPosY = 3;
 
@@ -671,6 +674,8 @@ int Control::forwardTile(byte intensity)
   motor4.resetEncoderTotalTurnPos();
 
   forwardMotors(intensity);
+
+  int returnValue = 0;
   
   //Add sensor scanning in this area for more precision or obstacles
   while (true)
@@ -680,13 +685,21 @@ int Control::forwardTile(byte intensity)
         (int)ultraSensorFront.getDistance() == frontDistance - 30)
     {
       frontDistance -= 30;
-      break;
+      stopMotors();
+      return colorSensor.calculateColor();
     }
 
     if (colorSensor.calculateColor() == 2)
     {
       backFromBlack(intensity);
       return 2;
+    }
+
+    //If there is a ramp
+    if (control.getGyroScope().getInclination() > 5)
+    {
+      backFromBlack(intensity);
+      return 4;
     }
 
     ultraSensorRight.getDistance();
@@ -697,9 +710,6 @@ int Control::forwardTile(byte intensity)
 
   }
 
-  stopMotors();
-
-  return colorSensor.calculateColor();
 }
 
 /*--------------------------------------
@@ -767,6 +777,7 @@ public:
   void setSearchNumber(byte number) {searchNumber = number;}
   void setTraceNumber(byte number) {traceNumber = number;}
   void setTemperature(float temp) {temperature = temp;}
+  void setIsRamp(bool value) {isRamp = value;}
 
   bool getIsVisited() {return isVisited;}
   bool getIsNode() {return isNode;}
@@ -775,6 +786,7 @@ public:
   byte getSearchNumber() {return searchNumber;}
   byte getTraceNumber() {return traceNumber;}
   float getTemperature() {return temperature;}
+  bool getIsRamp() {return isRamp;}
 
   Wall wallNorth;
   Wall wallEast;
@@ -786,6 +798,7 @@ private:
   byte y;
 
   bool isVisited, isNode, isRobotPresent;
+  bool isRamp;
   byte floorType;
   byte searchNumber;
   byte traceNumber;
@@ -799,6 +812,7 @@ Tile::Tile()
   isVisited = false;
   isNode = false;
   isRobotPresent = false;
+  isRamp = false;
 
   floorType = 0;
   searchNumber = 100;
@@ -841,6 +855,8 @@ public:
 
   static void eraseNodes();
 
+  static void rampMode();
+
   static Control control;
 
 private:
@@ -849,17 +865,23 @@ private:
 
   static byte robotPosX;
   static byte robotPosY;
+
   static robotOrientation orientation;
+  static robotOrientation rampOrientation;
 
   static possibleMoves nextMove;
+  static possibleMoves rampMove;
 
   static Tile tiles[4][4];
+  static Tile tiles2[4][4];
 
   static byte intensity;
 
   static bool nodeMode;
   static bool mazeComplete;
   static bool activateNode;
+  static bool inMainMaze;
+  static bool maze2Complete;
 
   static byte currentSearchNumber;
   static byte nodePosX;
@@ -867,6 +889,12 @@ private:
 
   static byte lastCheckPointPosX;
   static byte lastCheckPointPosY;
+
+  static byte rampPosX;
+  static byte rampPosY;
+
+  static byte maze2StartPosX;
+  static byte maze2StartPosY;
 
   static byte nodeAmount;
 
@@ -878,6 +906,8 @@ public:
 Navigation::robotOrientation Navigation::orientation = North;
 Navigation::possibleMoves Navigation::nextMove = MoveForward;
 
+Navigation::robotOrientation Navigation::rampOrientation = North;
+
 byte Navigation::intensity = 255; 
 
 byte Navigation::currentSearchNumber = 1;
@@ -888,14 +918,23 @@ byte Navigation::nodeAmount = 0;
 byte Navigation::lastCheckPointPosX = 0;
 byte Navigation::lastCheckPointPosY = 0;
 
+byte Navigation::rampPosX = 0;
+byte Navigation::rampPosY = 0;
+
+byte Navigation::maze2StartPosX = 0;
+byte Navigation::maze2StartPosY = 0;
+
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
 Tile Navigation::tiles[4][4];
+Tile Navigation::tiles2[4][4];
 Control Navigation::control;
 
 bool Navigation::nodeMode = false;
 bool Navigation::mazeComplete = false;
 bool Navigation::activateNode = true;
+bool Navigation::inMainMaze = true;
+bool Navigation::maze2Complete = false;
 
 void Navigation::start(byte matSize)
 {
@@ -950,7 +989,6 @@ void Navigation::eraseNodes()
   bool eastBlocked = true;
   bool southBlocked = true;
 
-
   for (byte i = 0; i < mazeSizeY; ++i)
   {
     for (byte j = 0; j < mazeSizeX; ++j)
@@ -970,7 +1008,7 @@ void Navigation::eraseNodes()
         }
       }
     }
-  }
+  }  
 }
 
 void Navigation::findClosestNode()
@@ -978,6 +1016,7 @@ void Navigation::findClosestNode()
   bool nodeFound = false;
   bool finished = false;
   bool activateNode = false;
+  
   mazeComplete = true;
 
   for (byte i = 0; i < mazeSizeY; ++i)
@@ -1146,17 +1185,11 @@ void Navigation::findClosestNode()
   }
 
   Serial.println("Out of found loop");
+  
 }
 
 void Navigation::tracePath()
 {
-  //ELIMINAR ESTE IF
-  if (mazeComplete)
-  {
-    byte tracePosX = robotStartPosX;
-    byte tracePosY = robotStartPosY;
-  }
-
   byte tracePosX = nodePosX;
   byte tracePosY = nodePosY;
 
@@ -1272,7 +1305,10 @@ void Navigation::tracePath()
 
   tiles[robotPosY][robotPosY].setTraceNumber(currentSearchNumber);
   Serial.println("What the helllll");
+  
 }
+
+
 
 Navigation::possibleMoves Navigation::decideNextMove(bool frontAvailable, bool rightAvailable, bool leftAvailable)
 {
@@ -1921,15 +1957,69 @@ void Navigation::adjustToNextMove()
   }
 }
 
-void Navigation::moveToNextTile()
+/*
+void rampMode()
 {
-  int colorValue = control.forwardTile(intensity);
+  if (upRamp)
+  {
+    switch (rampMove)
+    {
+      case MoveForward:
+        break;
+
+      case TurnRight:
+        control.turnLeft(intensity);
+        break;
+
+      case TurnLeft:
+        control.turnRight(intensity);
+        break;
+    }        
+  }
+
+  forwardMotors(intensity);
+
+  while (true)
+  {
+    if(getGyroScope().getInclination() < 5)
+    {
+      stopMotors();
+      break;
+    }
+  }
+
+  bool frontAvailable = true;
+  bool rightAvailable = true;
+  bool leftAvailable = true;
+
+  if (!upRamp)
+  {
+    if (control.getUltraSensorFront().getDistance() < 20)
+    {
+      frontAvailable = false;
+    }
+
+    if (control.getUltraSensorRight().getDistance() < 20)
+    {
+      frontAvailable = false
+    } 
+  }
+
+  upRamp = !upRamp;
+
+}
+*/
+
+void Navigation::moveToNextTile()
+{ 
+  //If value is 2, there is black tile
+  int tileValue = control.forwardTile(intensity);
 
   switch(orientation)
   {
     case North:
 
-      if (colorValue == 2)
+      if (tileValue == 2)
       {
         tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
 
@@ -1944,14 +2034,25 @@ void Navigation::moveToNextTile()
       }
       else
       {
-        robotPosY--;
+        if (tileValue == 4)
+        {
+          pathToRampX = robotPosX;
+          pathToRampY = robotPosY;
+          tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
+          rampOrientation = North;
+        }
+        else
+        {
+          robotPosY--;
+        }
+        
       }
       
       break;
 
     case West:
 
-      if (colorValue == 2)
+      if (tileValue == 2)
       {
         tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
 
@@ -1966,14 +2067,24 @@ void Navigation::moveToNextTile()
       }
       else
       {
-        robotPosX--;
+        if (tileValue == 4)
+        {
+          pathToRampX = robotPosX;
+          pathToRampY = robotPosY;
+          tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
+          rampOrientation = West;
+        }
+        else
+        {
+          robotPosX--;
+        }
       }
 
       break;
 
     case East:
 
-      if (colorValue == 2)
+      if (tileValue == 2)
       {
         tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
 
@@ -1988,14 +2099,24 @@ void Navigation::moveToNextTile()
       }
       else
       {
-        robotPosX++;
+        if (tileValue == 4)
+        {
+          pathToRampX = robotPosX;
+          pathToRampY = robotPosY;
+          tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
+          rampOrientation = East;
+        }
+        else
+        {
+          robotPosX++;
+        }
       }
 
       break;
 
     case South:
 
-      if (colorValue == 2)
+      if (tileValue == 2)
       {
         tiles[robotPosY][robotPosX].wallSouth.setWallExists(true);
 
@@ -2010,20 +2131,34 @@ void Navigation::moveToNextTile()
       }
       else
       {
-        robotPosY++;
+        if (tileValue == 4)
+        {
+          pathToRampX = robotPosX;
+          pathToRampY = robotPosY;
+          tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
+          rampOrientation = South;
+        }
+        else
+        {
+          robotPosY++;
+        }
       }
 
       break;
   }
 
-  if (colorValue == 3)
+  //If it is a checkpoint
+  if (tileValue == 3)
   {
-     lastCheckPointPosX = robotPosX;
-     lastCheckPointPosY = robotPosY;
+    lastCheckPointPosX = robotPosX;
+    lastCheckPointPosY = robotPosY;
   }
+
+  //If it is a ramp
   
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
+
 }
 
 
