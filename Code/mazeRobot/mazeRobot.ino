@@ -1,5 +1,6 @@
+
 //#include <i2cmaster.h>
-#include <Adafruit_TCS34725.h>
+//#include <Adafruit_TCS34725.h>
 #include <EnableInterrupt.h>
 #include <NewPing.h>
 #include <Wire.h>
@@ -14,19 +15,22 @@
 ----------------------------------------
 */
 
-int mazeSizeX = 4;
-int mazeSizeY = 4;
+int mazeSizeX = 7;
+int mazeSizeY = 7;
 
-int mazeSizeX2 = 4;
-int mazeSizeY2 = 4;
+int mazeSizeX2 = 7;
+int mazeSizeY2 = 7;
 
 int robotStartPosX = 0;
-int robotStartPosY = 3;
+int robotStartPosY = 6;
 
 int luxBlack = 100;
 int luxWhite = 700;
 int luxCheckpoint = 700;
 
+Nextion myNextion;
+
+void checkCheckpointButton();
 
 /*--------------------------------------
 *
@@ -49,7 +53,7 @@ public:
   byte calculateColor();
 
 private:
-  Adafruit_TCS34725 tcs;
+  //Adafruit_TCS34725 tcs;
   byte redPin, greenPin, bluePin;
 };
 
@@ -883,6 +887,9 @@ public:
   static void backToHome();
   static void changeMaze();
 
+  static void restartToCheckPoint();
+  static void saveCheckpoint();
+
   static void checkNodeMode();
   static void eraseNodes();
   static Control control;
@@ -900,8 +907,9 @@ private:
   static possibleMoves nextMove;
   static possibleMoves rampMove;
 
-  static Tile tiles[4][4];
-  static Tile tiles2[4][4];
+  static Tile tiles[7][7];
+  static Tile tiles2[7][7];
+  static Tile tilesCheck[7][7];
 
   static byte intensity;
 
@@ -958,8 +966,9 @@ byte Navigation::maze2StartPosY = 0;
 
 byte Navigation::robotPosX = 0;
 byte Navigation::robotPosY = 0;
-Tile Navigation::tiles[4][4];
-Tile Navigation::tiles2[4][4];
+Tile Navigation::tiles[7][7];
+Tile Navigation::tiles2[7][7];
+Tile Navigation::tilesCheck[7][7];
 Control Navigation::control;
 
 bool Navigation::nodeMode = false;
@@ -1005,6 +1014,47 @@ void Navigation::start(byte matSize)
 
   tiles[robotPosY][robotPosX].setIsRobotPresent(true);
   tiles[robotPosY][robotPosX].setIsVisited(true);
+}
+
+void Navigation::restartToCheckPoint()
+{
+  robotPosX = lastCheckPointPosX;
+  robotPosY = lastCheckPointPosY;
+
+  for (int i = 0; i < mazeSizeY; ++i)
+  {
+    for (int j = 0; j < mazeSizeX; ++j)
+    {
+      tiles[i][j] = tilesCheck[i][j];
+    }
+  }
+  orientation = North;
+  
+  String message;
+  
+  while (true)
+  {
+    message = myNextion.listen();
+
+    if (message == "65 0 15 1 ffff ffff ffff")
+    {
+      break;
+    }
+  }
+}
+
+void Navigation::saveCheckpoint()
+{
+  lastCheckPointPosX = robotPosX;
+  lastCheckPointPosY = robotPosY;
+
+  for (int i = 0; i < mazeSizeY; ++i)
+  {
+    for (int j = 0; j < mazeSizeX; ++j)
+    {
+      tilesCheck[i][j] = tiles[i][j];
+    }
+  }
 }
 
 void Navigation::backToHome()
@@ -2387,8 +2437,7 @@ void Navigation::moveToNextTile()
   //If it is a checkpoint
   if (tileValue == 3)
   {
-    lastCheckPointPosX = robotPosX;
-    lastCheckPointPosY = robotPosY;
+    saveCheckpoint();
   }
 
   //If it is a ramp
@@ -2407,6 +2456,18 @@ void Navigation::moveToNextTile()
 *
 ----------------------------------------
 */
+
+void checkCheckpointButton()
+{
+  String message = myNextion.listen();
+  if(message != "")
+  {
+    if(message == "65 0 15 1 ffff ffff ffff")
+    {
+      Navigation::restartToCheckPoint();
+    }
+  }
+}
 
 //Interrupts for Motors
 
@@ -2456,9 +2517,8 @@ void encodeInterruptM4()
 ----------------------------------------
 */
 
-void setup() {
-
-  
+void setup() 
+{
   enableInterrupt(Navigation::getControl().getMotor1().getEncoderA(), encodeInterruptM1, CHANGE);
   enableInterrupt(Navigation::getControl().getMotor1().getEncoderB(), encodeInterruptM1, CHANGE);
   enableInterrupt(Navigation::getControl().getMotor2().getEncoderA(), encodeInterruptM2, CHANGE);
@@ -2475,8 +2535,8 @@ void setup() {
   Serial.begin(9600);
   Serial2.begin(9600);
 
- 
-
+  myNextion.init();
+  
   Navigation::control.setFrontDistance(Navigation::control.getUltraSensorFront().getDistance());
 
   Serial.print("Done");
@@ -2486,8 +2546,7 @@ void setup() {
 
 void loop()
 {
-
-    
+  checkCheckpointButton();
   if (!Navigation::getNodeMode())
   {
     //MAPPING NAVIGATION
@@ -2500,6 +2559,7 @@ void loop()
 
     //USE ULTRASONIC TO GET WALLS
     Navigation::scanSides();
+    checkCheckpointButton();
 
     Serial2.print("n0.val=");
     Serial2.print(7);  
@@ -2516,19 +2576,23 @@ void loop()
     }
     
     delay(100);
+    checkCheckpointButton();
 
     //ROTATE ROBOT TO MOVE
     Navigation::adjustToNextMove();
+    checkCheckpointButton();
 
     delay(100);  
 
     //Navigation::scanForVictims();
-
+    checkCheckpointButton();
     delay(50);
 
     //MOVE FORWARD TO NEXT TILE
     Navigation::moveToNextTile();
+    checkCheckpointButton();
     delay(100);
+    
   }
   else
   {
@@ -2537,23 +2601,30 @@ void loop()
     //CHECK IF FIRST TIME IN NODE
     if (Navigation::getActivateNode())
     {
+      checkCheckpointButton();
       Navigation::findClosestNode();
+      checkCheckpointButton();
       Navigation::tracePath();
+      checkCheckpointButton();
     }
 
     //DECIDE NEXT MOVE BASED ON NUMBERS
     Navigation::decideToTraceNumber();
+    checkCheckpointButton();
 
     //ROTATE TO NEXT MOVE
     Navigation::adjustToNextMove();
+    checkCheckpointButton();
 
     delay(100);
 
     //MOVE FORWARD TO NEXT TILE
     Navigation::moveToNextTile();
+    checkCheckpointButton();
 
     //CHECK IF DONE WITH NODES
     Navigation::checkNodeMode();
+    checkCheckpointButton();
 
   }
 
