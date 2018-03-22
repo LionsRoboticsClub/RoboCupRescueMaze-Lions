@@ -1,8 +1,7 @@
-#include <i2cmaster.h>
+//#include <i2cmaster.h>
 #include <Adafruit_TCS34725.h>
 #include <EnableInterrupt.h>
 #include <NewPing.h>
-#include <math.h>
 #include <Wire.h>
 
 
@@ -56,35 +55,15 @@ private:
 
 ColorSensor::ColorSensor()
 {
-  tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
-  tcs.begin();
+  //tcs = Adafruit_TCS34725(TCS34725_INTEGRATIONTIME_700MS, TCS34725_GAIN_1X);
+  //tcs.begin();
 
   
 }
 
 byte ColorSensor::calculateColor()
 {
- uint16_t r, g, b, c, colorTemp, lux;
-  
-  tcs.getRawData(&r, &g, &b, &c);
-  colorTemp = tcs.calculateColorTemperature(r, g, b);
-  lux = tcs.calculateLux(r, g, b);
-
-  if (lux < luxBlack)
-  {
-    return 2;
-  }
-  else
-  {
-    if (lux < luxWhite)
-    {
-      return 1;
-    }
-    else
-    {
-      return 3;
-    }
-  }
+  return 1;
 }
 //-------------------------------------------------
 
@@ -117,6 +96,7 @@ int LimitSwitch::isPushed()
 /*--------------------------------------
   Class Thermometer
 */
+
 class Thermometer
 {
 public: 
@@ -132,7 +112,7 @@ Thermometer::Thermometer(int ad)
 {
   address = ad;
 }
-
+/*
 float Thermometer::getTemperature()
 {
   int melexisAddress = address<<1;
@@ -184,7 +164,7 @@ float temperatureCelcius(int address)
   tempData = (tempData * tempFactor)-0.01;
   float celcius = tempData - 273.15;
   return celcius;
-}
+}*/
 //---------------------------------------
 
 /*---------------------------------------
@@ -469,8 +449,8 @@ motor1(4,5,19,25), motor2(7,6,18,24), motor3(9,8,3,23), motor4(10,11,2,22),
 ultraSensorRight(A9), ultraSensorLeft(A8), ultraSensorFront(A3), LimitSwitchA(A13), LimitSwitchB(27), LimitSwitchC(29), 
 LimitSwitchD(A12), tempSensorRight(0x1B), tempSensorLeft(0x2B), colorSensor()
 {
-  turn90amount = 850;
-  forward30amount = 1480;
+  turn90amount = 900;
+  forward30amount = 1520;
   back5amount = (forward30amount/6);
   frontDistance = 0;
 }
@@ -552,7 +532,7 @@ void Control::goUpRamp(byte intensity, bool isUp)
 
     while (true)
     {
-      if (gyroSensor.getInclination() > 5)
+      if (true)//gyroSensor.getInclination() > 5)
       {
         break;
       }
@@ -560,7 +540,7 @@ void Control::goUpRamp(byte intensity, bool isUp)
 
     while (true)
     {
-      if (gyroSensor.getInclination() < 5)
+      if (true)//gyroSensor.getInclination() < 5)
       {
         break;
       }
@@ -570,7 +550,7 @@ void Control::goUpRamp(byte intensity, bool isUp)
   {
     while (true)
     {
-      if (gyroSensor.getInclination() < -5)
+      if (true)//gyroSensor.getInclination() < -5)
       {
         break;
       }
@@ -578,7 +558,7 @@ void Control::goUpRamp(byte intensity, bool isUp)
 
     while (true)
     {
-      if (gyroSensor.getInclination() > -5)
+      if (true)//gyroSensor.getInclination() > -5)
       {
         break;
       }
@@ -727,7 +707,7 @@ int Control::forwardTile(byte intensity)
   {
     if (motor1.getEncoderTotalTurnPos() > forward30amount && motor2.getEncoderTotalTurnPos() > forward30amount &&
         motor3.getEncoderTotalTurnPos() > forward30amount && motor4.getEncoderTotalTurnPos() > forward30amount &&
-        (int)ultraSensorFront.getDistance() == frontDistance - 30)
+        (int)ultraSensorFront.getDistance() < frontDistance - 30)
     {
       frontDistance -= 30;
       stopMotors();
@@ -741,7 +721,7 @@ int Control::forwardTile(byte intensity)
     }
 
     //If there is a ramp
-    if (control.getGyroScope().getInclination() > 5)
+    if (false)//control.getGyroScope().getInclination() > 5)
     {
       backFromBlack(intensity);
       return 4;
@@ -933,6 +913,7 @@ private:
   static bool backToMain;
   static bool toSecondMaze;
   static bool done;
+  static bool thereIsRamp;
 
   static byte currentSearchNumber;
   static byte nodePosX;
@@ -989,6 +970,7 @@ bool Navigation::maze2Complete = false;
 bool Navigation::backToMain = false;
 bool Navigation::toSecondMaze = false;
 bool Navigation::done = false;
+bool Navigation::thereIsRamp = false;
 
 void Navigation::start(byte matSize)
 {
@@ -1114,10 +1096,18 @@ void Navigation::findClosestNode()
 
     if (mazeComplete)
     {
-      toSecondMaze = true;
-      backToMain = false;
-      tiles[rampPosX][rampPosY].setIsNode(true);
 
+      if (thereIsRamp)
+      {
+         tiles[rampPosY][rampPosX].setIsNode(true);
+         toSecondMaze = true;
+         backToMain = false;
+      }
+      else
+      {
+        tiles[robotStartPosY][robotStartPosX].setIsNode(true);
+      }
+     
     }
   }
   else
@@ -1667,20 +1657,10 @@ void Navigation::scanSides()
 
 void Navigation::scanForVictims()
 {
-  float tempRight = control.getTempSensorRight().getTemperature();
-  float tempLeft = control.getTempSensorLeft().getTemperature();
+  //float tempRight = control.getTempSensorRight().getTemperature();
+  //float tempLeft = control.getTempSensorLeft().getTemperature();
 
-  Serial2.print("n2.val=");
-    Serial2.print((int)tempRight);  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
-
-    Serial2.print("n3.val=");
-    Serial2.print((int)tempLeft);  
-    Serial2.write(0xff); 
-    Serial2.write(0xff);
-    Serial2.write(0xff);
+  
 }
 
 void Navigation::decideToTraceNumber()
@@ -2293,6 +2273,7 @@ void Navigation::moveToNextTile()
           rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
           rampOrientation = North;
+          thereIsRamp = true;
         }
         else
         {
@@ -2326,6 +2307,7 @@ void Navigation::moveToNextTile()
           rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallWest.setWallExists(true);
           rampOrientation = West;
+          thereIsRamp = true;
         }
         else
         {
@@ -2358,6 +2340,7 @@ void Navigation::moveToNextTile()
           rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallEast.setWallExists(true);
           rampOrientation = East;
+          thereIsRamp = true;
         }
         else
         {
@@ -2390,6 +2373,7 @@ void Navigation::moveToNextTile()
           rampPosY = robotPosY;
           tiles[robotPosY][robotPosX].wallNorth.setWallExists(true);
           rampOrientation = South;
+          thereIsRamp = true;
         }
         else
         {
@@ -2471,8 +2455,10 @@ void encodeInterruptM4()
 *
 ----------------------------------------
 */
+
 void setup() {
 
+  
   enableInterrupt(Navigation::getControl().getMotor1().getEncoderA(), encodeInterruptM1, CHANGE);
   enableInterrupt(Navigation::getControl().getMotor1().getEncoderB(), encodeInterruptM1, CHANGE);
   enableInterrupt(Navigation::getControl().getMotor2().getEncoderA(), encodeInterruptM2, CHANGE);
@@ -2484,18 +2470,23 @@ void setup() {
 
   Navigation::start(5);
 
-  i2c_init();
+ // i2c_init();
 
   Serial.begin(9600);
   Serial2.begin(9600);
 
-  delay(1000);
+ 
 
   Navigation::control.setFrontDistance(Navigation::control.getUltraSensorFront().getDistance());
+
+  Serial.print("Done");
+
+   delay(1000);
 }
 
 void loop()
 {
+
     
   if (!Navigation::getNodeMode())
   {
@@ -2510,7 +2501,13 @@ void loop()
     //USE ULTRASONIC TO GET WALLS
     Navigation::scanSides();
 
-    Navigation::scanForVictims();
+    Serial2.print("n0.val=");
+    Serial2.print(7);  
+    Serial2.write(0xff); 
+    Serial2.write(0xff);
+    Serial2.write(0xff);
+
+    //Navigation::scanForVictims();
     
     //IF NO POSSIBLE MOVE, GO NODE MODE
     if (Navigation::getNodeMode())
@@ -2525,7 +2522,7 @@ void loop()
 
     delay(100);  
 
-    Navigation::scanForVictims();
+    //Navigation::scanForVictims();
 
     delay(50);
 
