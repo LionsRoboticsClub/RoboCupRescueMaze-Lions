@@ -25,6 +25,7 @@ NewPing::NewPing(uint8_t trigger_pin, uint8_t echo_pin, unsigned int max_cm_dist
 	_echoPin = echo_pin;
 #endif
 
+
 	set_max_distance(max_cm_distance); // Call function to set the max sensor distance.
 
 #if (defined (__arm__) && (defined (TEENSYDUINO) || defined(PARTICLE))) || DO_BITWISE != true

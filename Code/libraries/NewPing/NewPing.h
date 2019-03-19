@@ -18,6 +18,7 @@
 // This software is furnished "as is", without technical support, and with no 
 // warranty, express or implied, as to its usefulness for any purpose.
 //
+
 // BACKGROUND:
 // When I first received an ultrasonic sensor I was not happy with how poorly
 // it worked. Quickly I realized the problem wasn't the sensor, it was the

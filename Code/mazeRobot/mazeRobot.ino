@@ -21,6 +21,7 @@ int mazeSizeY = 7;
 int mazeSizeX2 = 7;
 int mazeSizeY2 = 7;
 
+
 int robotStartPosX = 0;
 int robotStartPosY = 6;
 

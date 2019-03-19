@@ -12,6 +12,7 @@ NewPing	KEYWORD1
 # Methods and Functions (KEYWORD2)
 ###################################
 
+
 ping	KEYWORD2
 ping_in	KEYWORD2
 ping_cm	KEYWORD2

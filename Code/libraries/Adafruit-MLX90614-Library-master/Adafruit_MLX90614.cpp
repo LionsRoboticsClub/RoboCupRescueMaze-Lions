@@ -16,6 +16,7 @@
   BSD license, all text above must be included in any redistribution
  ****************************************************/
 
+
 #include "Adafruit_MLX90614.h"
 
 Adafruit_MLX90614::Adafruit_MLX90614(uint8_t i2caddr) {

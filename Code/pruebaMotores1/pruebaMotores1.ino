@@ -12,7 +12,9 @@ public:
     DigitalSharp(int);
     
     bool isInRange();
+ 
 
+ 
 private:
     int pin;
 };

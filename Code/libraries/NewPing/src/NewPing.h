@@ -14,6 +14,7 @@
 // Project home: https://bitbucket.org/teckel12/arduino-new-ping/wiki/Home
 // Blog: http://arduino.cc/forum/index.php/topic,106043.0.html
 //
+
 // DISCLAIMER:
 // This software is furnished "as is", without technical support, and with no 
 // warranty, express or implied, as to its usefulness for any purpose.

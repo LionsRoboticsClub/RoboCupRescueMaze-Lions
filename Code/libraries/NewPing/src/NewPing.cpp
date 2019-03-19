@@ -11,6 +11,7 @@
 // NewPing constructor
 // ---------------------------------------------------------------------------
 
+
 NewPing::NewPing(uint8_t trigger_pin, uint8_t echo_pin, unsigned int max_cm_distance) {
 #if DO_BITWISE == true
 	_triggerBit = digitalPinToBitMask(trigger_pin); // Get the port register bitmask for the trigger pin.
