@@ -510,7 +510,8 @@ void Control::turnRight(byte intensity)
 
   rotateRight(intensity);
 
-  //Add sensor scanning in this area for more precision or obstacles
+  //Add sensor scanning in this area for more precision or obstacles 
+  //NO ME GUSTAN LOS METICHES
   while (true)
   {
     if (motor1.getEncoderTotalTurnPos() > turn90amount && motor2.getEncoderTotalTurnPos() > turn90amount &&
